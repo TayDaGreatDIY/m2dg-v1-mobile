@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +10,7 @@ import 'core/config/env.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Loads .env (for web you must also list it under flutter/assets in pubspec.yaml)
   await dotenv.load(fileName: ".env");
   Env.validate();
 
@@ -19,54 +22,41 @@ Future<void> main() async {
   runApp(const MyApp());
 }
 
-/* =========================
-   ROUTER + APP SHELL
-   ========================= */
-
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
+  static final GoRouter _router = GoRouter(
+    initialLocation: '/courts',
+    routes: <RouteBase>[
+      GoRoute(
+        path: '/courts',
+        builder: (context, state) => const CourtsPage(),
+        routes: <RouteBase>[
+          GoRoute(
+            path: ':id',
+            builder: (context, state) {
+              final id = state.pathParameters['id'] ?? '';
+              return CourtDetailsPage(courtId: id);
+            },
+          ),
+        ],
+      ),
+    ],
+  );
+
   @override
   Widget build(BuildContext context) {
-    final router = GoRouter(
-      initialLocation: '/courts',
-      routes: [
-        GoRoute(path: '/', redirect: (_, __) => '/courts'),
-        GoRoute(
-          path: '/courts',
-          builder: (context, state) => const CourtsPage(),
-        ),
-        GoRoute(
-          path: '/courts/:id',
-          builder: (context, state) {
-            final id = state.pathParameters['id']!;
-            final extra = state.extra;
-            final court = extra is Map<String, dynamic> ? extra : null;
-            return CourtDetailsPage(courtId: id, court: court);
-          },
-        ),
-      ],
-    );
-
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
       title: 'M2DG v1',
-      routerConfig: router,
       theme: ThemeData(
-        useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        useMaterial3: true,
       ),
+      routerConfig: _router,
     );
   }
 }
-
-/* =========================
-   B) COURTS LIST: SEARCH / FILTER / SORT
-   ========================= */
-
-enum CourtsFilter { all, active, inactive }
-
-enum CourtsSort { newest, nameAz }
 
 class CourtsPage extends StatefulWidget {
   const CourtsPage({super.key});
@@ -76,27 +66,33 @@ class CourtsPage extends StatefulWidget {
 }
 
 class _CourtsPageState extends State<CourtsPage> {
-  final _client = Supabase.instance.client;
+  final _searchCtrl = TextEditingController();
+  Timer? _debounce;
 
+  bool _activeOnly = false;
   bool _loading = true;
   String? _error;
-
   List<Map<String, dynamic>> _courts = const [];
 
-  // Step B state
-  final TextEditingController _searchCtrl = TextEditingController();
-  CourtsFilter _filter = CourtsFilter.all;
-  CourtsSort _sort = CourtsSort.newest;
+  SupabaseClient get _db => Supabase.instance.client;
 
   @override
   void initState() {
     super.initState();
     _loadCourts();
-    _searchCtrl.addListener(() => setState(() {}));
+
+    // Debounced search
+    _searchCtrl.addListener(() {
+      _debounce?.cancel();
+      _debounce = Timer(const Duration(milliseconds: 350), () {
+        _loadCourts();
+      });
+    });
   }
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -108,19 +104,38 @@ class _CourtsPageState extends State<CourtsPage> {
     });
 
     try {
-      final res = await _client.from('courts').select(
-            'id,name,address,city,state,country,lat,lng,is_active,created_at,radius_meters',
+      final q = _searchCtrl.text.trim();
+
+      // Build filters FIRST, then apply transforms (like order) LAST.
+      // In supabase_dart v2, calling `order()` returns a TransformBuilder,
+      // and you can't call `.eq()` / `.or()` after that.
+      var query = _db.from('courts').select(
+            'id,name,address,city,state,country,lat,lng,radius_meters,is_active,created_at',
           );
 
-      final list = (res as List)
-          .map((e) => Map<String, dynamic>.from(e as Map))
-          .toList();
+      if (_activeOnly) {
+        query = query.eq('is_active', true);
+      }
 
+      if (q.isNotEmpty) {
+        // Search across a few text columns (case-insensitive)
+        final escaped = q.replaceAll('"', r'\"');
+        query = query.or(
+          'name.ilike.%$escaped%,address.ilike.%$escaped%,city.ilike.%$escaped%,state.ilike.%$escaped%,country.ilike.%$escaped%',
+        );
+      }
+
+      // Apply ordering last (transform)
+      final data = await query.order('created_at', ascending: false);
+      final list = (data as List).cast<Map<String, dynamic>>();
+
+      if (!mounted) return;
       setState(() {
         _courts = list;
         _loading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e.toString();
         _loading = false;
@@ -128,96 +143,14 @@ class _CourtsPageState extends State<CourtsPage> {
     }
   }
 
-  List<Map<String, dynamic>> get _visibleCourts {
-    final q = _searchCtrl.text.trim().toLowerCase();
-
-    bool matchesQuery(Map<String, dynamic> c) {
-      if (q.isEmpty) return true;
-      final haystack = [
-        (c['name'] ?? ''),
-        (c['address'] ?? ''),
-        (c['city'] ?? ''),
-        (c['state'] ?? ''),
-        (c['country'] ?? ''),
-      ].join(' ').toLowerCase();
-      return haystack.contains(q);
-    }
-
-    bool matchesFilter(Map<String, dynamic> c) {
-      final isActive = c['is_active'] == true;
-      return switch (_filter) {
-        CourtsFilter.all => true,
-        CourtsFilter.active => isActive,
-        CourtsFilter.inactive => !isActive,
-      };
-    }
-
-    final filtered =
-        _courts.where(matchesQuery).where(matchesFilter).map((e) => e).toList();
-
-    int compareByNewest(Map<String, dynamic> a, Map<String, dynamic> b) {
-      final ad = _parseDate(a['created_at']);
-      final bd = _parseDate(b['created_at']);
-      // newest first
-      return bd.compareTo(ad);
-    }
-
-    int compareByName(Map<String, dynamic> a, Map<String, dynamic> b) {
-      final an = (a['name'] ?? '').toString().toLowerCase();
-      final bn = (b['name'] ?? '').toString().toLowerCase();
-      return an.compareTo(bn);
-    }
-
-    switch (_sort) {
-      case CourtsSort.newest:
-        filtered.sort(compareByNewest);
-        break;
-      case CourtsSort.nameAz:
-        filtered.sort(compareByName);
-        break;
-    }
-
-    return filtered;
-  }
-
-  DateTime _parseDate(dynamic value) {
-    try {
-      if (value == null) return DateTime.fromMillisecondsSinceEpoch(0);
-      if (value is DateTime) return value;
-      return DateTime.parse(value.toString());
-    } catch (_) {
-      return DateTime.fromMillisecondsSinceEpoch(0);
-    }
+  void _clearSearch() {
+    _searchCtrl.clear();
+    _loadCourts();
   }
 
   @override
   Widget build(BuildContext context) {
-    final body = switch ((_loading, _error)) {
-      (true, _) => const Center(child: CircularProgressIndicator()),
-      (false, String err) => _ErrorState(
-          title: 'Could not load courts',
-          message: err,
-          onRetry: _loadCourts,
-        ),
-      (false, null) => _visibleCourts.isEmpty
-          ? _EmptyState(
-              onRefresh: _loadCourts,
-              subtitle: _searchCtrl.text.trim().isEmpty
-                  ? 'Insert a court row in Supabase, then refresh.'
-                  : 'No results for "${_searchCtrl.text.trim()}". Try a different search.',
-            )
-          : ListView.separated(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
-              itemCount: _visibleCourts.length + 1,
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
-              itemBuilder: (context, index) {
-                // index 0 = controls header
-                if (index == 0) return _ControlsHeader();
-                final c = _visibleCourts[index - 1];
-                return _CourtRow(court: c);
-              },
-            ),
-    };
+    final q = _searchCtrl.text.trim();
 
     return Scaffold(
       appBar: AppBar(
@@ -230,197 +163,248 @@ class _CourtsPageState extends State<CourtsPage> {
           ),
         ],
       ),
-      body: body,
+      body: Column(
+        children: [
+          _controlsHeader(
+            context: context,
+            searchCtrl: _searchCtrl,
+            activeOnly: _activeOnly,
+            onActiveOnlyChanged: (v) {
+              setState(() => _activeOnly = v);
+              _loadCourts();
+            },
+            onClear: _clearSearch,
+          ),
+          Expanded(
+            child: _buildBody(context, q),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _ControlsHeader() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildBody(BuildContext context, String q) {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline, size: 32),
+              const SizedBox(height: 8),
+              Text(
+                'Could not load courts.',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _error!,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: _loadCourts,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_courts.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'No courts found.',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                q.isEmpty
+                    ? 'Try refreshing.'
+                    : 'No results for "$q". Try a different search.',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                alignment: WrapAlignment.center,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: _loadCourts,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Refresh'),
+                  ),
+                  if (q.isNotEmpty)
+                    FilledButton.icon(
+                      onPressed: _clearSearch,
+                      icon: const Icon(Icons.clear),
+                      label: const Text('Clear search'),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 16),
+      itemCount: _courts.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      itemBuilder: (context, index) {
+        final c = _courts[index];
+
+        final name = (c['name'] ?? 'Unnamed court').toString();
+        final address = (c['address'] ?? '').toString();
+        final city = (c['city'] ?? '').toString();
+        final state = (c['state'] ?? '').toString();
+        final country = (c['country'] ?? '').toString();
+        final radius = c['radius_meters'];
+        final isActive = c['is_active'] == true;
+
+        final locationLine = [
+          if (city.isNotEmpty) city,
+          if (state.isNotEmpty) state,
+          if (country.isNotEmpty) country,
+        ].join(', ');
+
+        final subtitleParts = <String>[];
+        if (address.isNotEmpty) subtitleParts.add(address);
+        if (locationLine.isNotEmpty) subtitleParts.add(locationLine);
+        if (radius != null) subtitleParts.add('Radius: ${radius.toString()}m');
+
+        final subtitle = subtitleParts.join(' • ');
+
+        return Card(
+          elevation: 1,
+          child: ListTile(
+            leading: Icon(
+              Icons.sports_basketball,
+              color: isActive ? Colors.green : Colors.grey,
+            ),
+            title: Text(
+              name,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            subtitle: Text(subtitle.isEmpty ? '—' : subtitle),
+            trailing: isActive
+                ? const Chip(label: Text('Active'))
+                : const Chip(label: Text('Inactive')),
+            onTap: () {
+              final id = (c['id'] ?? '').toString();
+              if (id.isNotEmpty) {
+                context.go('/courts/$id');
+              }
+            },
+          ),
+        );
+      },
+    );
+  }
+}
+
+Widget _controlsHeader({
+  required BuildContext context,
+  required TextEditingController searchCtrl,
+  required bool activeOnly,
+  required ValueChanged<bool> onActiveOnlyChanged,
+  required VoidCallback onClear,
+}) {
+  return Padding(
+    padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+    child: Column(
       children: [
-        // Search
         TextField(
-          controller: _searchCtrl,
+          controller: searchCtrl,
           textInputAction: TextInputAction.search,
           decoration: InputDecoration(
+            hintText: 'Search courts (name, city, state...)',
             prefixIcon: const Icon(Icons.search),
-            hintText: 'Search courts (name, city, address...)',
-            suffixIcon: _searchCtrl.text.isEmpty
+            suffixIcon: searchCtrl.text.trim().isEmpty
                 ? null
                 : IconButton(
                     tooltip: 'Clear',
-                    icon: const Icon(Icons.close),
-                    onPressed: () => _searchCtrl.clear(),
+                    onPressed: onClear,
+                    icon: const Icon(Icons.clear),
                   ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-            ),
+            border: const OutlineInputBorder(),
           ),
         ),
         const SizedBox(height: 10),
-
-        // Filter + Sort row
         Row(
           children: [
             Expanded(
-              child: SegmentedButton<CourtsFilter>(
-                segments: const [
-                  ButtonSegment(value: CourtsFilter.all, label: Text('All')),
-                  ButtonSegment(
-                      value: CourtsFilter.active, label: Text('Active')),
-                  ButtonSegment(
-                      value: CourtsFilter.inactive, label: Text('Inactive')),
-                ],
-                selected: {_filter},
-                onSelectionChanged: (s) => setState(() => _filter = s.first),
-              ),
-            ),
-            const SizedBox(width: 10),
-            PopupMenuButton<CourtsSort>(
-              tooltip: 'Sort',
-              onSelected: (v) => setState(() => _sort = v),
-              itemBuilder: (context) => const [
-                PopupMenuItem(
-                  value: CourtsSort.newest,
-                  child: Text('Sort: Newest'),
-                ),
-                PopupMenuItem(
-                  value: CourtsSort.nameAz,
-                  child: Text('Sort: Name A–Z'),
-                ),
-              ],
-              child: Chip(
-                avatar: const Icon(Icons.sort, size: 18),
-                label: Text(_sort == CourtsSort.newest ? 'Newest' : 'Name A–Z'),
+              child: SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                value: activeOnly,
+                onChanged: onActiveOnlyChanged,
+                title: const Text('Active only'),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 12),
       ],
-    );
-  }
+    ),
+  );
 }
-
-class _CourtRow extends StatelessWidget {
-  final Map<String, dynamic> court;
-
-  const _CourtRow({required this.court});
-
-  @override
-  Widget build(BuildContext context) {
-    final id = (court['id'] ?? '').toString();
-    final name = (court['name'] ?? 'Unnamed court').toString();
-
-    final address = (court['address'] ?? '').toString();
-    final city = (court['city'] ?? '').toString();
-    final state = (court['state'] ?? '').toString();
-    final country = (court['country'] ?? '').toString();
-
-    final radius = court['radius_meters']; // can be null
-    final isActive = court['is_active'] == true;
-
-    final locationLine = [
-      if (city.isNotEmpty) city,
-      if (state.isNotEmpty) state,
-      if (country.isNotEmpty) country,
-    ].join(', ');
-
-    final subtitle = [
-      if (address.isNotEmpty) address,
-      if (locationLine.isNotEmpty) locationLine,
-      if (radius != null) 'Radius: ${radius.toString()}m',
-    ].join(' • ');
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(14),
-      onTap: () {
-        // Step A: tap -> details
-        context.go('/courts/$id', extra: court);
-      },
-      child: Card(
-        elevation: 1,
-        child: ListTile(
-          leading: Icon(
-            Icons.sports_basketball,
-            color: isActive ? Colors.green : Colors.grey,
-          ),
-          title: Text(
-            name,
-            style: const TextStyle(fontWeight: FontWeight.w700),
-          ),
-          subtitle: Text(subtitle.isEmpty ? '—' : subtitle),
-          trailing: isActive
-              ? const Chip(label: Text('Active'))
-              : const Chip(label: Text('Inactive')),
-        ),
-      ),
-    );
-  }
-}
-
-/* =========================
-   A) COURT DETAILS
-   ========================= */
 
 class CourtDetailsPage extends StatefulWidget {
   final String courtId;
-  final Map<String, dynamic>? court;
-
-  const CourtDetailsPage({
-    super.key,
-    required this.courtId,
-    this.court,
-  });
+  const CourtDetailsPage({super.key, required this.courtId});
 
   @override
   State<CourtDetailsPage> createState() => _CourtDetailsPageState();
 }
 
 class _CourtDetailsPageState extends State<CourtDetailsPage> {
-  final _client = Supabase.instance.client;
-
-  bool _loading = false;
+  bool _loading = true;
   String? _error;
   Map<String, dynamic>? _court;
+
+  SupabaseClient get _db => Supabase.instance.client;
 
   @override
   void initState() {
     super.initState();
-    _court = widget.court;
-    if (_court == null) {
-      _fetchCourt();
-    }
+    _loadCourt();
   }
 
-  Future<void> _fetchCourt() async {
+  Future<void> _loadCourt() async {
     setState(() {
       _loading = true;
       _error = null;
     });
 
     try {
-      final res = await _client
+      final data = await _db
           .from('courts')
           .select(
-            'id,name,address,city,state,country,lat,lng,is_active,created_at,radius_meters',
+            'id,name,address,city,state,country,lat,lng,radius_meters,is_active,created_at',
           )
           .eq('id', widget.courtId)
           .maybeSingle();
 
-      if (res == null) {
-        setState(() {
-          _error = 'Court not found.';
-          _loading = false;
-        });
-        return;
-      }
-
+      if (!mounted) return;
       setState(() {
-        _court = Map<String, dynamic>.from(res as Map);
+        _court = data;
         _loading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e.toString();
         _loading = false;
@@ -430,34 +414,92 @@ class _CourtDetailsPageState extends State<CourtDetailsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final c = _court;
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Court Details'),
+        leading: IconButton(
+          tooltip: 'Back',
+          onPressed: () => context.pop(),
+          icon: const Icon(Icons.arrow_back),
+        ),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh',
+            onPressed: _loadCourt,
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
+      ),
+      body: _buildBody(context),
+    );
+  }
 
-    if (_loading && c == null) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+  Widget _buildBody(BuildContext context) {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
     }
 
-    if (_error != null && c == null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Court Details')),
-        body: _ErrorState(
-          title: 'Could not load court',
-          message: _error!,
-          onRetry: _fetchCourt,
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline, size: 32),
+              const SizedBox(height: 8),
+              Text(
+                'Could not load court.',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              Text(_error!, textAlign: TextAlign.center),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: _loadCourt,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry'),
+              ),
+            ],
+          ),
         ),
       );
     }
 
-    final name = (c?['name'] ?? 'Unnamed court').toString();
-    final address = (c?['address'] ?? '').toString();
-    final city = (c?['city'] ?? '').toString();
-    final state = (c?['state'] ?? '').toString();
-    final country = (c?['country'] ?? '').toString();
-    final lat = c?['lat'];
-    final lng = c?['lng'];
-    final radius = c?['radius_meters'];
-    final isActive = c?['is_active'] == true;
+    final c = _court;
+    if (c == null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Court not found.',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: () => context.pop(),
+                icon: const Icon(Icons.arrow_back),
+                label: const Text('Back to courts'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final name = (c['name'] ?? 'Unnamed court').toString();
+    final address = (c['address'] ?? '').toString();
+    final city = (c['city'] ?? '').toString();
+    final state = (c['state'] ?? '').toString();
+    final country = (c['country'] ?? '').toString();
+    final lat = c['lat'];
+    final lng = c['lng'];
+    final radius = c['radius_meters'];
+    final isActive = c['is_active'] == true;
+    final id = (c['id'] ?? '').toString();
 
     final locationLine = [
       if (city.isNotEmpty) city,
@@ -465,171 +507,77 @@ class _CourtDetailsPageState extends State<CourtDetailsPage> {
       if (country.isNotEmpty) country,
     ].join(', ');
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Court Details'),
-        actions: [
-          IconButton(
-            tooltip: 'Refresh',
-            onPressed: _fetchCourt,
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.sports_basketball,
-                color: isActive ? Colors.green : Colors.grey,
-                size: 28,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  name,
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              isActive
-                  ? const Chip(label: Text('Active'))
-                  : const Chip(label: Text('Inactive')),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _kv('Address', address.isEmpty ? '—' : address),
-                  _kv('Location', locationLine.isEmpty ? '—' : locationLine),
-                  _kv('Latitude', lat?.toString() ?? '—'),
-                  _kv('Longitude', lng?.toString() ?? '—'),
-                  _kv('Radius (meters)', radius?.toString() ?? '—'),
-                  _kv('Court ID', widget.courtId),
-                ],
-              ),
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              Icons.sports_basketball,
+              size: 28,
+              color: isActive ? Colors.green : Colors.grey,
             ),
-          ),
-          const SizedBox(height: 14),
-          Card(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            child: const Padding(
-              padding: EdgeInsets.all(14),
+            const SizedBox(width: 10),
+            Expanded(
               child: Text(
-                'Next upgrades will go here (Check-in, map, queue, etc.).',
-                style: TextStyle(fontWeight: FontWeight.w600),
+                name,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
               ),
             ),
+            const SizedBox(width: 10),
+            Chip(label: Text(isActive ? 'Active' : 'Inactive')),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              children: [
+                _kvRow('Address', address.isEmpty ? '—' : address),
+                _kvRow('Location', locationLine.isEmpty ? '—' : locationLine),
+                _kvRow('Latitude', lat == null ? '—' : lat.toString()),
+                _kvRow('Longitude', lng == null ? '—' : lng.toString()),
+                _kvRow('Radius (meters)',
+                    radius == null ? '—' : radius.toString()),
+                _kvRow('Court ID', id),
+              ],
+            ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _kv(String k, String v) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 130,
+        ),
+        const SizedBox(height: 12),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(14),
             child: Text(
-              k,
-              style: const TextStyle(fontWeight: FontWeight.w700),
+              'Next upgrades will go here (Check-in, map, queue, etc.).',
+              style: Theme.of(context).textTheme.bodyMedium,
             ),
           ),
-          Expanded(child: Text(v)),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
 
-/* =========================
-   SMALL UI HELPERS
-   ========================= */
-
-class _EmptyState extends StatelessWidget {
-  final Future<void> Function() onRefresh;
-  final String subtitle;
-
-  const _EmptyState({
-    required this.onRefresh,
-    required this.subtitle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'No courts found.',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 10),
-            Text(subtitle, textAlign: TextAlign.center),
-            const SizedBox(height: 14),
-            ElevatedButton.icon(
-              onPressed: onRefresh,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Refresh'),
-            ),
-          ],
+Widget _kvRow(String k, String v) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 6),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 130,
+          child: Text(
+            k,
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
         ),
-      ),
-    );
-  }
-}
-
-class _ErrorState extends StatelessWidget {
-  final String title;
-  final String message;
-  final VoidCallback onRetry;
-
-  const _ErrorState({
-    required this.title,
-    required this.message,
-    required this.onRetry,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 10),
-            Text(message, textAlign: TextAlign.center),
-            const SizedBox(height: 14),
-            ElevatedButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Try again'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+        Expanded(child: Text(v)),
+      ],
+    ),
+  );
 }
