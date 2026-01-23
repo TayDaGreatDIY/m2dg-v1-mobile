@@ -85,4 +85,28 @@
 \- No shipping without basic error handling and logging.
 
 
+# M2DG Engineering Rules (v1)
+
+## Change Discipline
+- Keep code changes minimal per feature/fix (small PRs / small commits).
+- One purpose per commit. Clear commit messages.
+- If a bug fix is needed, fix root cause (not band-aids).
+
+## Security Defaults
+- Rate-limit every public API endpoint.
+- CAPTCHA required on: signup, login, password reset, contact/intake forms.
+- No “open routes” (everything private requires auth where appropriate).
+- Validate + sanitize all inputs server-side.
+- Principle of least privilege via Supabase RLS.
+
+## Anti-Cheat + Integrity
+- Cooldown enforced server-side (not just UI).
+- Location/radius checks validated on server-side.
+- Prevent replay/spam requests (idempotency keys / dedupe).
+- Audit trail for check-ins and “Called Next”.
+
+## Reliability
+- Fail safe: if location permission is denied → no check-in.
+- Offline mode never grants check-in credit (queue only).
+- Logging + monitoring for edge functions.
 
