@@ -4,28 +4,19 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:geolocator/geolocator.dart';
 
 /// M2DGv1 - Mobile (Flutter)
 /// Step A: Courts list -> Court details
-/// Step B: Courts list UX polish:
-///   - Search clear (X)
-///   - Empty state actions (Clear / Show all)
-///   - Sort dropdown
-///   - Light filters (Active only, Has radius)
+/// Step B: Courts list UX polish
+/// Step C: Check-in (Location REQUIRED)
 ///
-/// Notes:
-/// - Keep .env LOCAL ONLY (ignored by git). Use .env.example as template.
-/// - Ensure pubspec.yaml includes:
-///     assets:
-///       - .env
-///
-/// Required env vars:
-///   SUPABASE_URL
-///   SUPABASE_ANON_KEY
+/// Update: Sticky confirmation modal after successful check-in
+/// (stays until user dismisses)
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Load env (must be listed as an asset in pubspec.yaml).
   await dotenv.load(fileName: '.env');
 
   final supabaseUrl = dotenv.env['SUPABASE_URL'];
@@ -60,16 +51,14 @@ class M2DGApp extends StatelessWidget {
           path: '/',
           name: 'courts',
           builder: (context, state) => const CourtsPage(),
-          routes: [
-            GoRoute(
-              path: 'courts/:id',
-              name: 'courtDetails',
-              builder: (context, state) {
-                final id = state.pathParameters['id']!;
-                return CourtDetailsPage(courtId: id);
-              },
-            ),
-          ],
+        ),
+        GoRoute(
+          path: '/courts/:id',
+          name: 'courtDetails',
+          builder: (context, state) {
+            final id = state.pathParameters['id']!;
+            return CourtDetailsPage(courtId: id);
+          },
         ),
       ],
       errorBuilder: (context, state) => Scaffold(
@@ -112,10 +101,8 @@ class _CourtsPageState extends State<CourtsPage> {
   bool _loading = false;
   String? _error;
 
-  // Raw data from DB
   List<Map<String, dynamic>> _courts = [];
 
-  // Step B UI state
   CourtSort _sort = CourtSort.nameAZ;
   bool _filterActiveOnly = false;
   bool _filterHasRadius = false;
@@ -126,7 +113,7 @@ class _CourtsPageState extends State<CourtsPage> {
   void initState() {
     super.initState();
     _searchCtrl.addListener(_onSearchChanged);
-    _loadCourts(); // initial load
+    _loadCourts();
   }
 
   @override
@@ -138,12 +125,11 @@ class _CourtsPageState extends State<CourtsPage> {
   }
 
   void _onSearchChanged() {
-    // Debounce to reduce queries while typing.
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 300), () {
       _loadCourts();
     });
-    setState(() {}); // update suffix icon (clear button)
+    setState(() {});
   }
 
   Future<void> _loadCourts() async {
@@ -158,11 +144,9 @@ class _CourtsPageState extends State<CourtsPage> {
       var q = supabase.from('courts').select('*');
 
       if (term.isNotEmpty) {
-        // Safe assumption: `name` exists.
         q = q.ilike('name', '%$term%');
       }
 
-      // Stable order; we also do client-side sort below.
       final res = await q.order('name', ascending: true);
 
       final list = (res as List).cast<Map<String, dynamic>>();
@@ -197,7 +181,6 @@ class _CourtsPageState extends State<CourtsPage> {
   ) {
     Iterable<Map<String, dynamic>> out = input;
 
-    // Filters (guard for missing columns to avoid hiding everything).
     if (_filterActiveOnly) {
       out = out.where((c) {
         final v = c['is_active'];
@@ -217,7 +200,6 @@ class _CourtsPageState extends State<CourtsPage> {
 
     final list = out.toList();
 
-    // Sort
     switch (_sort) {
       case CourtSort.nameAZ:
         list.sort((a, b) {
@@ -228,7 +210,6 @@ class _CourtsPageState extends State<CourtsPage> {
         break;
 
       case CourtSort.newest:
-        // Prefer created_at if present; fallback to name.
         list.sort((a, b) {
           final ac = a['created_at'];
           final bc = b['created_at'];
@@ -240,7 +221,7 @@ class _CourtsPageState extends State<CourtsPage> {
           if (bc is String) bd = DateTime.tryParse(bc);
 
           if (ad != null && bd != null) {
-            return bd.compareTo(ad); // newest first
+            return bd.compareTo(ad);
           }
           final an = (a['name'] ?? '').toString().toLowerCase();
           final bn = (b['name'] ?? '').toString().toLowerCase();
@@ -616,7 +597,7 @@ class _Pill extends StatelessWidget {
 }
 
 /// ------------------------------
-/// Court Details (Step A + light polish)
+/// Court Details (Step C Check-in)
 /// ------------------------------
 
 class CourtDetailsPage extends StatefulWidget {
@@ -630,8 +611,14 @@ class CourtDetailsPage extends StatefulWidget {
 
 class _CourtDetailsPageState extends State<CourtDetailsPage> {
   bool _loading = false;
+  bool _checkingIn = false;
   String? _error;
   Map<String, dynamic>? _court;
+
+  static const int _cooldownMinutes = 10;
+
+  // Prevent stacking dialogs if user taps fast / multiple returns.
+  bool _checkinDialogOpen = false;
 
   @override
   void initState() {
@@ -667,10 +654,280 @@ class _CourtDetailsPageState extends State<CourtDetailsPage> {
     }
   }
 
+  double? _readDouble(Map<String, dynamic> obj, List<String> keys) {
+    for (final k in keys) {
+      final v = obj[k];
+      if (v == null) continue;
+      if (v is num) return v.toDouble();
+      if (v is String) {
+        final parsed = double.tryParse(v);
+        if (parsed != null) return parsed;
+      }
+    }
+    return null;
+  }
+
+  int? _readInt(Map<String, dynamic> obj, List<String> keys) {
+    for (final k in keys) {
+      final v = obj[k];
+      if (v == null) continue;
+      if (v is int) return v;
+      if (v is num) return v.toInt();
+      if (v is String) {
+        final parsed = int.tryParse(v);
+        if (parsed != null) return parsed;
+      }
+    }
+    return null;
+  }
+
+  Future<bool> _ensureSignedIn() async {
+    final current = supabase.auth.currentUser;
+    if (current != null) return true;
+
+    try {
+      await supabase.auth.signInAnonymously();
+      return supabase.auth.currentUser != null;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<Position?> _requireLocation() async {
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      await _showLocationDialog(
+        title: 'Turn on Location',
+        message: 'Location is required to check in. Turn on Location Services.',
+        openSettings: () async => Geolocator.openLocationSettings(),
+      );
+      return null;
+    }
+
+    LocationPermission perm = await Geolocator.checkPermission();
+    if (perm == LocationPermission.denied) {
+      perm = await Geolocator.requestPermission();
+    }
+
+    if (perm == LocationPermission.denied) {
+      _toast('Location permission denied. Check-in requires location.');
+      return null;
+    }
+
+    if (perm == LocationPermission.deniedForever) {
+      await _showLocationDialog(
+        title: 'Enable Location Permission',
+        message: 'Permission is permanently denied. Enable it in app settings.',
+        openSettings: () async => Geolocator.openAppSettings(),
+      );
+      return null;
+    }
+
+    try {
+      final pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 12),
+      );
+      return pos;
+    } catch (e) {
+      _toast('Could not get your location. Try again. (${e.toString()})');
+      return null;
+    }
+  }
+
+  Future<void> _showLocationDialog({
+    required String title,
+    required String message,
+    required Future<void> Function() openSettings,
+  }) async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              await openSettings();
+            },
+            child: const Text('Open settings'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _toast(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  Future<void> _showStickyCheckinDialog({
+    required int radiusMeters,
+    required int cooldownMinutes,
+  }) async {
+    if (!mounted) return;
+    if (_checkinDialogOpen) return;
+
+    _checkinDialogOpen = true;
+    try {
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false, // Sticky until user dismisses
+        builder: (ctx) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.check_circle_outline),
+              SizedBox(width: 10),
+              Expanded(child: Text('Checked in!')),
+            ],
+          ),
+          content: Text(
+            'You’re inside the court radius.\n\nCooldown started: $cooldownMinutes minutes.\n\nYou can check in again when the cooldown ends.',
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      _checkinDialogOpen = false;
+    }
+  }
+
+  Future<DateTime?> _getLastCheckinTime({
+    required String userId,
+    required String courtId,
+  }) async {
+    try {
+      final res = await supabase
+          .from('checkins')
+          .select('created_at')
+          .eq('user_id', userId)
+          .eq('court_id', courtId)
+          .order('created_at', ascending: false)
+          .limit(1);
+
+      final rows = (res as List).cast<Map<String, dynamic>>();
+      if (rows.isEmpty) return null;
+
+      final createdAt = rows.first['created_at'];
+      if (createdAt is String) return DateTime.tryParse(createdAt);
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _handleCheckIn() async {
+    if (_checkingIn) return;
+
+    final c = _court;
+    if (c == null) {
+      _toast('Court not loaded yet.');
+      return;
+    }
+
+    setState(() => _checkingIn = true);
+
+    try {
+      final okAuth = await _ensureSignedIn();
+      final user = supabase.auth.currentUser;
+      if (!okAuth || user == null) {
+        _toast('Sign-in required. Enable Anonymous Auth in Supabase.');
+        return;
+      }
+
+      final radiusMeters = _readInt(c, ['radius_meters']);
+      if (radiusMeters == null || radiusMeters <= 0) {
+        _toast('No radius set. Add radius_meters in Supabase.');
+        return;
+      }
+
+      final courtLat = _readDouble(c, ['lat', 'latitude']);
+      final courtLng = _readDouble(c, ['lng', 'lon', 'longitude']);
+      if (courtLat == null || courtLng == null) {
+        _toast('Missing coordinates. Add lat/lng in Supabase.');
+        return;
+      }
+
+      final pos = await _requireLocation();
+      if (pos == null) return;
+
+      if (pos.accuracy > 80) {
+        _toast(
+          'GPS accuracy too low (${pos.accuracy.toStringAsFixed(0)}m). Try again.',
+        );
+        return;
+      }
+
+      final distance = Geolocator.distanceBetween(
+        pos.latitude,
+        pos.longitude,
+        courtLat,
+        courtLng,
+      );
+
+      if (distance > radiusMeters) {
+        final away = (distance - radiusMeters).ceil();
+        _toast('Not close enough. About ${away}m outside the radius.');
+        return;
+      }
+
+      final last =
+          await _getLastCheckinTime(userId: user.id, courtId: widget.courtId);
+      if (last != null) {
+        final now = DateTime.now().toUtc();
+        final diff = now.difference(last.toUtc());
+        const cooldown = Duration(minutes: _cooldownMinutes);
+
+        if (diff < cooldown) {
+          final remaining = (cooldown - diff).inMinutes;
+          final remSec = (cooldown - diff).inSeconds % 60;
+          _toast('Cooldown active. Try again in ${remaining}m ${remSec}s.');
+          return;
+        }
+      }
+
+      await supabase.from('checkins').insert({
+        'user_id': user.id,
+        'court_id': widget.courtId,
+      });
+
+      // Sticky confirmation modal (stays until OK)
+      await _showStickyCheckinDialog(
+        radiusMeters: radiusMeters,
+        cooldownMinutes: _cooldownMinutes,
+      );
+    } catch (e) {
+      _toast('Check-in failed: ${e.toString()}');
+    } finally {
+      if (mounted) setState(() => _checkingIn = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = _court;
     final title = (c?['name'] ?? 'Court Details').toString();
+
+    final courtLat = c == null ? null : _readDouble(c, ['lat', 'latitude']);
+    final courtLng =
+        c == null ? null : _readDouble(c, ['lng', 'lon', 'longitude']);
 
     return Scaffold(
       appBar: AppBar(
@@ -698,20 +955,30 @@ class _CourtDetailsPageState extends State<CourtDetailsPage> {
                         _kv('State', (c['state'] ?? '').toString()),
                         _kv('Radius (meters)', '${c['radius_meters'] ?? ''}'),
                         _kv('Active', '${c['is_active'] ?? ''}'),
+                        _kv(
+                          'Coordinates',
+                          (courtLat != null && courtLng != null)
+                              ? '${courtLat.toStringAsFixed(6)}, ${courtLng.toStringAsFixed(6)}'
+                              : '',
+                        ),
                         const SizedBox(height: 18),
                         FilledButton.icon(
-                          onPressed: () {
-                            // Step C will wire check-in here.
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Check-in coming in Step C (radius + cooldown + anti-cheat).',
-                                ),
-                              ),
-                            );
-                          },
-                          icon: const Icon(Icons.login),
-                          label: const Text('Check in'),
+                          onPressed: _checkingIn ? null : _handleCheckIn,
+                          icon: _checkingIn
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Icon(Icons.login),
+                          label:
+                              Text(_checkingIn ? 'Checking in...' : 'Check in'),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          'Step C rules: Location required • Must be inside radius • ${_cooldownMinutes}m cooldown',
+                          style: Theme.of(context).textTheme.labelMedium,
                         ),
                       ],
                     ),
@@ -727,10 +994,7 @@ class _CourtDetailsPageState extends State<CourtDetailsPage> {
         children: [
           SizedBox(
             width: 140,
-            child: Text(
-              k,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
+            child: Text(k, style: const TextStyle(fontWeight: FontWeight.w600)),
           ),
           Expanded(child: Text(v)),
         ],
