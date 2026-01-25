@@ -57,7 +57,8 @@ class M2DGApp extends StatelessWidget {
           name: 'courtDetails',
           builder: (context, state) {
             final id = state.pathParameters['id']!;
-            return CourtDetailsPage(courtId: id);
+            final court = state.extra as Map<String, dynamic>?;
+            return CourtDetailsPage(courtId: id, court: court);
           },
         ),
       ],
