@@ -7,6 +7,9 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../services/checkin_service.dart';
+import '../widgets/court_card.dart';
+import '../widgets/empty_state.dart';
+import '../widgets/skeleton_list.dart';
 
 final supabase = Supabase.instance.client;
 
@@ -84,6 +87,16 @@ class _CourtsPageState extends State<CourtsPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(msg), duration: const Duration(seconds: 2)),
     );
+  }
+
+  void _clearFilters() {
+    _searchCtrl.clear();
+    setState(() {
+      _sort = CourtSort.nameAsc;
+      _filterActiveOnly = false;
+      _filterHasRadius = false;
+      // keep dev toggle as-is (don’t auto-change dev workflow)
+    });
   }
 
   Future<void> _loadAll() async {
@@ -358,6 +371,184 @@ class _CourtsPageState extends State<CourtsPage> {
     }
   }
 
+  PreferredSizeWidget _buildTopAppBar() {
+    return AppBar(
+      title: const Text('Courts'),
+      actions: [
+        IconButton(
+          tooltip: 'Refresh',
+          onPressed: _loading ? null : _loadAll,
+          icon: const Icon(Icons.refresh),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSearch() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: TextField(
+        controller: _searchCtrl,
+        decoration: const InputDecoration(
+          prefixIcon: Icon(Icons.search),
+          hintText: 'Search courts by name, city, or state',
+          border: OutlineInputBorder(),
+          isDense: true,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSort() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: DropdownButtonFormField<CourtSort>(
+        value: _sort,
+        isExpanded: true,
+        decoration: const InputDecoration(
+          labelText: 'Sort',
+          border: OutlineInputBorder(),
+          isDense: true,
+        ),
+        items: CourtSort.values
+            .map(
+              (s) => DropdownMenuItem<CourtSort>(
+                value: s,
+                child: Text(s.label),
+              ),
+            )
+            .toList(growable: false),
+        onChanged: (v) {
+          if (v == null) return;
+          setState(() => _sort = v);
+        },
+      ),
+    );
+  }
+
+  Widget _buildFilters({String? anchorName}) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Wrap(
+            spacing: 10,
+            runSpacing: 8,
+            children: [
+              FilterChip(
+                label: const Text('Active only'),
+                selected: _filterActiveOnly,
+                onSelected: (v) => setState(() {
+                  _filterActiveOnly = v;
+                }),
+              ),
+              FilterChip(
+                label: const Text('Has radius'),
+                selected: _filterHasRadius,
+                onSelected: (v) => setState(() {
+                  _filterHasRadius = v;
+                }),
+              ),
+              if (kDebugMode)
+                FilterChip(
+                  label: const Text('DEV: Pin to court coords'),
+                  selected: _debugPinToCourtCoords,
+                  onSelected: (v) => setState(() {
+                    _debugPinToCourtCoords = v;
+                  }),
+                ),
+            ],
+          ),
+        ),
+        if (kDebugMode && _debugPinToCourtCoords && anchorName != null) ...[
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'DEV anchor: $anchorName',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildCount(int count) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Text(
+          '$count court${count == 1 ? '' : 's'}',
+          style: Theme.of(context).textTheme.labelLarge,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildList(List<Map<String, dynamic>> courts) {
+    if (courts.isEmpty) {
+  return EmptyState(
+    icon: Icons.search_off,
+    title: 'No courts found',
+    message: 'Try clearing filters or searching a different name, city, or state.',
+    actionLabel: 'Clear filters',
+    onAction: _clearFilters,
+  );
+}
+
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(12),
+      itemCount: courts.length,
+      itemBuilder: (ctx, i) {
+        final c = courts[i];
+        final id = _courtId(c);
+
+        final name = _courtName(c);
+        final city = _courtCity(c);
+        final state = _courtState(c);
+
+        final active = _isActive(c);
+        final radius = _readInt(c, ['radius_meters']);
+
+        final dist = _distanceMetersFromDevAnchor(c);
+        final inRangeBool = (dist != null && radius != null) ? dist <= radius : false;
+
+        final cooldownRem =
+            id.isEmpty ? Duration.zero : _cooldownRemainingForCourt(id);
+        final cooldownActive = cooldownRem > Duration.zero;
+
+        // Keep your original "can check in" logic
+        final canCheckIn =
+            !_checkingIn && radius != null && radius > 0 && id.isNotEmpty;
+
+        final distanceText = dist != null ? '$dist m' : null;
+        final radiusText = (radius != null && radius > 0) ? '$radius m radius' : null;
+
+        // If cooldown is active, we disable the button by passing null
+        final onCheckIn = (canCheckIn && !cooldownActive) ? () => _checkInFromList(c) : null;
+
+        return CourtCard(
+          data: CourtCardData(
+            title: name.isEmpty ? 'Court' : name,
+            subtitle: [city, state].where((s) => s.isNotEmpty).join(', '),
+            distanceText: distanceText,
+            inRange: inRangeBool,
+            active: active,
+            radiusText: radiusText,
+            onTap: () => _openCourt(c),
+            onCheckIn: onCheckIn,
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final courts = _filteredSortedCourts();
@@ -366,299 +557,42 @@ class _CourtsPageState extends State<CourtsPage> {
     final anchorName = anchorCourt == null ? null : _courtName(anchorCourt);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Courts'),
-        actions: [
-          IconButton(
-            tooltip: 'Refresh',
-            onPressed: _loading ? null : _loadAll,
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
-      ),
+      appBar: _buildTopAppBar(),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const SkeletonList(count: 6)
           : _error != null
-              ? Center(child: Text(_error!))
+              ? ErrorState(
+                  message: _error!,
+                  onRetry: _loadAll,
+                )
               : Column(
                   children: [
                     const SizedBox(height: 10),
 
                     // Search
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: TextField(
-                        controller: _searchCtrl,
-                        decoration: const InputDecoration(
-                          prefixIcon: Icon(Icons.search),
-                          hintText: 'Search courts by name, city, or state',
-                          border: OutlineInputBorder(),
-                          isDense: true,
-                        ),
-                      ),
-                    ),
+                    _buildSearch(),
 
                     const SizedBox(height: 10),
 
                     // Sort
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: DropdownButtonFormField<CourtSort>(
-                        value: _sort,
-                        isExpanded: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Sort',
-                          border: OutlineInputBorder(),
-                          isDense: true,
-                        ),
-                        items: CourtSort.values
-                            .map(
-                              (s) => DropdownMenuItem<CourtSort>(
-                                value: s,
-                                child: Text(s.label),
-                              ),
-                            )
-                            .toList(growable: false),
-                        onChanged: (v) {
-                          if (v == null) return;
-                          setState(() => _sort = v);
-                        },
-                      ),
-                    ),
+                    _buildSort(),
 
                     const SizedBox(height: 10),
 
                     // Filters + Debug toggle
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: Wrap(
-                        spacing: 10,
-                        runSpacing: 8,
-                        children: [
-                          FilterChip(
-                            label: const Text('Active only'),
-                            selected: _filterActiveOnly,
-                            onSelected: (v) => setState(() {
-                              _filterActiveOnly = v;
-                            }),
-                          ),
-                          FilterChip(
-                            label: const Text('Has radius'),
-                            selected: _filterHasRadius,
-                            onSelected: (v) => setState(() {
-                              _filterHasRadius = v;
-                            }),
-                          ),
-                          if (kDebugMode)
-                            FilterChip(
-                              label: const Text('DEV: Pin to court coords'),
-                              selected: _debugPinToCourtCoords,
-                              onSelected: (v) => setState(() {
-                                _debugPinToCourtCoords = v;
-                              }),
-                            ),
-                        ],
-                      ),
-                    ),
-
-                    if (kDebugMode &&
-                        _debugPinToCourtCoords &&
-                        anchorName != null) ...[
-                      const SizedBox(height: 8),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            'DEV anchor: $anchorName',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ),
-                      ),
-                    ],
+                    _buildFilters(anchorName: anchorName),
 
                     const SizedBox(height: 8),
 
                     // Count
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          '${courts.length} court${courts.length == 1 ? '' : 's'}',
-                          style: Theme.of(context).textTheme.labelLarge,
-                        ),
-                      ),
-                    ),
+                    _buildCount(courts.length),
 
                     const SizedBox(height: 8),
 
                     // List
-                    Expanded(
-                      child: courts.isEmpty
-                          ? const Center(child: Text('No courts found.'))
-                          : ListView.separated(
-                              padding: const EdgeInsets.all(12),
-                              itemCount: courts.length,
-                              separatorBuilder: (_, __) =>
-                                  const SizedBox(height: 10),
-                              itemBuilder: (ctx, i) {
-                                final c = courts[i];
-                                final id = _courtId(c);
-
-                                final name = _courtName(c);
-                                final city = _courtCity(c);
-                                final state = _courtState(c);
-
-                                final active = _isActive(c);
-                                final radius = _readInt(c, ['radius_meters']);
-
-                                final dist = _distanceMetersFromDevAnchor(c);
-                                final inRange = (dist != null && radius != null)
-                                    ? dist <= radius
-                                    : null;
-
-                                final cooldownRem = id.isEmpty
-                                    ? Duration.zero
-                                    : _cooldownRemainingForCourt(id);
-                                final cooldownActive =
-                                    cooldownRem > Duration.zero;
-
-                                final canCheckIn = !_checkingIn &&
-                                    radius != null &&
-                                    radius > 0 &&
-                                    id.isNotEmpty;
-
-                                return InkWell(
-                                  onTap: () => _openCourt(c),
-                                  borderRadius: BorderRadius.circular(14),
-                                  child: Container(
-                                    padding: const EdgeInsets.all(14),
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(14),
-                                      border: Border.all(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .outlineVariant,
-                                      ),
-                                    ),
-                                    child: Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        CircleAvatar(
-                                          child: Text(
-                                            name.isNotEmpty
-                                                ? name.characters.first
-                                                : '?',
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                name.isEmpty ? 'Court' : name,
-                                                style: Theme.of(context)
-                                                    .textTheme
-                                                    .titleMedium,
-                                              ),
-                                              const SizedBox(height: 2),
-                                              Text(
-                                                [city, state]
-                                                    .where((s) => s.isNotEmpty)
-                                                    .join(', '),
-                                                style: Theme.of(context)
-                                                    .textTheme
-                                                    .bodySmall,
-                                              ),
-                                              const SizedBox(height: 10),
-                                              Wrap(
-                                                spacing: 8,
-                                                runSpacing: 8,
-                                                children: [
-                                                  if (dist != null)
-                                                    _pill(context, '$dist m'),
-                                                  if (inRange == true)
-                                                    _pill(context, 'IN RANGE'),
-                                                  if (radius != null &&
-                                                      radius > 0)
-                                                    _pill(context,
-                                                        '$radius m radius'),
-                                                  if (active)
-                                                    _pill(context, 'Active'),
-                                                  if (cooldownActive)
-                                                    _pill(context,
-                                                        'Cooldown ${_fmt(cooldownRem)}'),
-                                                ],
-                                              ),
-                                              if (dist != null &&
-                                                  inRange == false &&
-                                                  radius != null)
-                                                Padding(
-                                                  padding:
-                                                      const EdgeInsets.only(
-                                                          top: 8),
-                                                  child: Text(
-                                                    'Out of range • $dist m away',
-                                                    style: Theme.of(context)
-                                                        .textTheme
-                                                        .bodySmall,
-                                                  ),
-                                                ),
-                                            ],
-                                          ),
-                                        ),
-                                        const SizedBox(width: 10),
-
-                                        // Actions
-                                        Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.end,
-                                          children: [
-                                            FilledButton.tonal(
-                                              onPressed: canCheckIn
-                                                  ? () => _checkInFromList(c)
-                                                  : null,
-                                              child: _checkingIn
-                                                  ? const SizedBox(
-                                                      width: 18,
-                                                      height: 18,
-                                                      child:
-                                                          CircularProgressIndicator(
-                                                              strokeWidth: 2),
-                                                    )
-                                                  : const Text('Check in'),
-                                            ),
-                                            const SizedBox(height: 6),
-                                            const Icon(Icons.chevron_right),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                    ),
+                    Expanded(child: _buildList(courts)),
                   ],
                 ),
-    );
-  }
-
-  Widget _pill(BuildContext context, String text) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-      ),
-      child: Text(
-        text,
-        style: Theme.of(context).textTheme.labelMedium,
-      ),
     );
   }
 }
