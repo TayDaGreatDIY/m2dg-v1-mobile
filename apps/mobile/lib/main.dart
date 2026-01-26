@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
+import 'services/session_manager.dart';
 import 'screens/courts_page.dart';
 import 'screens/court_details_page.dart';
 import 'screens/sign_in_page.dart';
@@ -55,6 +56,7 @@ Future<void> main() async {
 }
 
 final supabase = Supabase.instance.client;
+late SessionManager sessionManager; // Global session manager for activity tracking
 
 class M2DGApp extends StatefulWidget {
   const M2DGApp({super.key});
@@ -70,6 +72,10 @@ class _M2DGAppState extends State<M2DGApp> {
   @override
   void initState() {
     super.initState();
+    
+    // Initialize session manager for inactivity timeout
+    sessionManager = SessionManager(supabase: supabase);
+    sessionManager.startMonitoring();
     
     // Initialize auth state notifier
     _authStateNotifier = ValueNotifier<bool>(supabase.auth.currentUser != null);
@@ -238,6 +244,7 @@ class _M2DGAppState extends State<M2DGApp> {
 
   @override
   void dispose() {
+    sessionManager.dispose();
     _authStateNotifier.dispose();
     super.dispose();
   }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../main.dart';
 import '../services/notification_service.dart';
 
 final supabase = Supabase.instance.client;
@@ -73,6 +74,9 @@ class _MainShellState extends State<MainShell> {
   }
 
   void _onNavTapped(int index) {
+    // Record user activity for session timeout
+    sessionManager.recordActivity();
+    
     setState(() => _selectedIndex = index);
 
     switch (index) {
@@ -149,7 +153,11 @@ class _MainShellState extends State<MainShell> {
           ),
         ],
       ),
-      body: widget.child,
+      body: GestureDetector(
+        onTap: () => sessionManager.recordActivity(),
+        behavior: HitTestBehavior.translucent,
+        child: widget.child,
+      ),
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         currentIndex: _selectedIndex,

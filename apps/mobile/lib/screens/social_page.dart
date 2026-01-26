@@ -36,26 +36,86 @@ class _SocialPageState extends State<SocialPage> with SingleTickerProviderStateM
       final userId = supabase.auth.currentUser?.id;
       if (userId == null) return;
 
-      // Load accepted friends
+      // Load accepted friends (simple select without relationship join)
       final friendsData = await supabase
           .from('friendships')
-          .select('*, friend:profiles!friendships_friend_id_fkey(id, username, display_name, skill_level)')
+          .select('id, friend_id, status, created_at')
           .eq('user_id', userId)
           .eq('status', 'accepted')
           .order('created_at', ascending: false);
 
-      // Load pending requests (received)
+      // Load pending requests (received) - simple select without relationship join
       final requestsData = await supabase
           .from('friendships')
-          .select('*, requester:profiles!friendships_user_id_fkey(id, username, display_name, skill_level)')
+          .select('id, user_id, status, created_at')
           .eq('friend_id', userId)
           .eq('status', 'pending')
           .order('created_at', ascending: false);
 
+      // Fetch profiles for friends
+      List<Map<String, dynamic>> friendsList = [];
+      {
+        final friendIds = (friendsData as List)
+            .cast<Map<String, dynamic>>()
+            .map((f) => f['friend_id'] as String?)
+            .whereType<String>()
+            .toList();
+        
+        if (friendIds.isNotEmpty) {
+          final profiles = await supabase
+              .from('profiles')
+              .select('id, user_id, username, display_name, skill_level')
+              .inFilter('user_id', friendIds);
+          
+          // Merge friendship and profile data
+          for (var friendship in friendsData as List) {
+            final profile = (profiles as List)
+                .cast<Map<String, dynamic>>()
+                .firstWhere(
+                  (p) => p['user_id'] == friendship['friend_id'],
+                  orElse: () => {},
+                );
+            if (profile.isNotEmpty) {
+              friendsList.add({...friendship, 'friend': profile});
+            }
+          }
+        }
+      }
+
+      // Fetch profiles for pending requests
+      List<Map<String, dynamic>> requestsList = [];
+      {
+        final requesterIds = (requestsData as List)
+            .cast<Map<String, dynamic>>()
+            .map((f) => f['user_id'] as String?)
+            .whereType<String>()
+            .toList();
+        
+        if (requesterIds.isNotEmpty) {
+          final profiles = await supabase
+              .from('profiles')
+              .select('id, user_id, username, display_name, skill_level')
+              .inFilter('user_id', requesterIds);
+          
+          // Merge friendship and profile data
+          for (var friendship in requestsData as List) {
+            final profile = (profiles as List)
+                .cast<Map<String, dynamic>>()
+                .firstWhere(
+                  (p) => p['user_id'] == friendship['user_id'],
+                  orElse: () => {},
+                );
+            if (profile.isNotEmpty) {
+              requestsList.add({...friendship, 'requester': profile});
+            }
+          }
+        }
+      }
+
       if (mounted) {
         setState(() {
-          _friends = List<Map<String, dynamic>>.from(friendsData);
-          _pendingRequests = List<Map<String, dynamic>>.from(requestsData);
+          _friends = friendsList;
+          _pendingRequests = requestsList;
           _isLoading = false;
         });
       }
