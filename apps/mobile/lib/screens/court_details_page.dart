@@ -202,7 +202,9 @@ class _CourtDetailsPageState extends State<CourtDetailsPage> {
   }
 
   void _recomputeCooldownAndTicker() {
+    // Always cancel any existing ticker first
     _tick?.cancel();
+    _tick = null;
 
     final last = _lastCheckinUtc;
     if (last == null) {
@@ -218,9 +220,14 @@ class _CourtDetailsPageState extends State<CourtDetailsPage> {
     if (remaining > Duration.zero) {
       _tick = Timer.periodic(const Duration(seconds: 1), (t) {
         final r = _checkins.computeCooldownRemaining(last);
-        if (!mounted) return;
+        if (!mounted) {
+          t.cancel();
+          return;
+        }
         setState(() => _cooldownRemaining = r);
-        if (r == Duration.zero) t.cancel();
+        if (r == Duration.zero) {
+          t.cancel();
+        }
       });
     }
   }
@@ -344,8 +351,11 @@ class _CourtDetailsPageState extends State<CourtDetailsPage> {
 
       _toast('You have left the court ✅');
 
-      // Refresh activity - this should now show no check-in and no cooldown
-      await _loadActivity();
+      // Refresh activity - reload from database to ensure we get fresh data
+      // This clears any lingering cooldown display after server deletes the check-in
+      if (mounted) {
+        await _loadActivity();
+      }
     } catch (e) {
       _toast('Failed to leave court: $e');
     } finally {
