@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../services/checkin_service.dart';
+import '../services/court_queue_service.dart';
 import '../widgets/court_card.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/skeleton_list.dart';
@@ -106,7 +107,7 @@ class _CourtsPageState extends State<CourtsPage> {
     });
 
     try {
-      await _svc.ensureSignedIn();
+      // Auth is now required, so no need to call ensureSignedIn()
       await _loadCourts();
       await _loadLastCheckinsForVisibleCourts();
       _ensureTicker();
@@ -241,13 +242,6 @@ class _CourtsPageState extends State<CourtsPage> {
     });
   }
 
-  String _fmt(Duration d) {
-    final total = d.inSeconds;
-    final m = total ~/ 60;
-    final s = total % 60;
-    return '$m:${s.toString().padLeft(2, '0')}';
-  }
-
   List<Map<String, dynamic>> _filteredSortedCourts() {
     final q = _searchCtrl.text.trim().toLowerCase();
 
@@ -380,6 +374,28 @@ class _CourtsPageState extends State<CourtsPage> {
           onPressed: _loading ? null : _loadAll,
           icon: const Icon(Icons.refresh),
         ),
+        PopupMenuButton<String>(
+          onSelected: (value) async {
+            if (value == 'sign_out') {
+              await supabase.auth.signOut();
+              if (mounted) {
+                context.go('/sign-in');
+              }
+            }
+          },
+          itemBuilder: (BuildContext context) => [
+            const PopupMenuItem<String>(
+              value: 'sign_out',
+              child: Row(
+                children: [
+                  Icon(Icons.logout),
+                  SizedBox(width: 12),
+                  Text('Sign Out'),
+                ],
+              ),
+            ),
+          ],
+        ),
       ],
     );
   }
@@ -403,8 +419,10 @@ class _CourtsPageState extends State<CourtsPage> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: DropdownButtonFormField<CourtSort>(
+        // ignore: deprecated_member_use
         value: _sort,
         isExpanded: true,
+        autovalidateMode: AutovalidateMode.disabled,
         decoration: const InputDecoration(
           labelText: 'Sort',
           border: OutlineInputBorder(),
@@ -533,20 +551,108 @@ class _CourtsPageState extends State<CourtsPage> {
         // If cooldown is active, we disable the button by passing null
         final onCheckIn = (canCheckIn && !cooldownActive) ? () => _checkInFromList(c) : null;
 
-        return CourtCard(
-          data: CourtCardData(
-            title: name.isEmpty ? 'Court' : name,
-            subtitle: [city, state].where((s) => s.isNotEmpty).join(', '),
-            distanceText: distanceText,
-            inRange: inRangeBool,
-            active: active,
-            radiusText: radiusText,
-            onTap: () => _openCourt(c),
-            onCheckIn: onCheckIn,
-          ),
+        return FutureBuilder<int>(
+          future: id.isNotEmpty ? CourtQueueService.getWaitingCount(id) : Future.value(0),
+          builder: (context, snapshot) {
+            final waitingCount = snapshot.data ?? 0;
+            return CourtCard(
+              data: CourtCardData(
+                title: name.isEmpty ? 'Court' : name,
+                subtitle: [city, state].where((s) => s.isNotEmpty).join(', '),
+                distanceText: distanceText,
+                inRange: inRangeBool,
+                active: active,
+                radiusText: radiusText,
+                onTap: () => _openCourt(c),
+                onCheckIn: onCheckIn,
+                waitingCount: waitingCount > 0 ? waitingCount : null,
+                onNextUp: waitingCount == 0 ? () => _callNextPlayer(id) : null,
+                onJoinQueue: id.isNotEmpty ? () => _joinQueue(id) : null,
+              ),
+            );
+          },
         );
       },
     );
+  }
+
+  Future<void> _callNextPlayer(String courtId) async {
+    try {
+      final nextPlayer = await CourtQueueService.callNextPlayer(courtId);
+      if (nextPlayer != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Called next player! They have 2 minutes to check in.'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+        setState(() {}); // Refresh to update waiting count
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error calling next: $e'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _joinQueue(String courtId) async {
+    try {
+      final user = supabase.auth.currentUser;
+      if (user == null) throw Exception('Not authenticated');
+
+      // Check if already in queue at this court
+      final existingQueue = await supabase
+          .from('court_queues')
+          .select('id')
+          .eq('court_id', courtId)
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+      if (existingQueue != null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('You are already in the queue for this court.'),
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+        return;
+      }
+
+      // Remove from all other court queues before joining this one
+      await supabase
+          .from('court_queues')
+          .delete()
+          .eq('user_id', user.id)
+          .neq('court_id', courtId);
+
+      // Join the queue
+      await CourtQueueService.joinQueue(courtId, teamSize: 1);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('You joined the queue! Wait for your turn.'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+        setState(() {}); // Refresh to update waiting count
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error joining queue: $e'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
   }
 
   @override

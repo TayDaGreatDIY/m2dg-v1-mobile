@@ -8,6 +8,9 @@ class CourtCardData {
   final bool inRange;
   final bool active;
   final String? radiusText; // e.g. "100 m radius"
+  final int? waitingCount; // Number of players waiting
+  final VoidCallback? onNextUp; // Callback for "Call Next" button
+  final VoidCallback? onJoinQueue; // Callback for "Join Queue" button
 
   final VoidCallback onTap;
   final VoidCallback? onCheckIn; // null disables the button
@@ -21,6 +24,9 @@ class CourtCardData {
     required this.radiusText,
     required this.onTap,
     required this.onCheckIn,
+    this.waitingCount,
+    this.onNextUp,
+    this.onJoinQueue,
   });
 }
 
@@ -139,6 +145,73 @@ class CourtCard extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
+                  // Waiting queue badge
+                  if (data.waitingCount != null && data.waitingCount! > 0)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: cs.errorContainer,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '${data.waitingCount} waiting',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: cs.onErrorContainer,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 8),
+                  // Join Queue button
+                  if (data.onJoinQueue != null)
+                    SizedBox(
+                      height: 36,
+                      child: FilledButton(
+                        onPressed: data.onJoinQueue,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: cs.tertiary,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: Text(
+                          'Join Queue',
+                          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                            color: cs.onTertiary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 8),
+                  // Call Next button
+                  if (data.onNextUp != null)
+                    SizedBox(
+                      height: 36,
+                      child: FilledButton(
+                        onPressed: data.onNextUp,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: cs.secondary,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: Text(
+                          'Call Next',
+                          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                            color: cs.onSecondary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 8),
+                  // Check in button
                   SizedBox(
                     height: 36,
                     child: FilledButton(

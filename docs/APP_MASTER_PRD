@@ -1,0 +1,80 @@
+# M2DG v1 — APP MASTER PRD (Full Build)
+
+## 1) Vision
+M2DG connects hoopers worldwide through real-world court activity, challenges, leaderboards, and community growth.
+
+## 2) Platforms
+- Primary: iOS (first) then Android
+- Dev: Flutter Web for speed
+
+## 3) MVP Release Strategy
+We build feature-by-feature and take each to “launch-ready” before moving on.
+
+Launch-ready means:
+- Clean UX (no dev-looking screens)
+- Stable state handling (loading/empty/error)
+- Navigation complete (no dead ends)
+- Works on mobile screen sizes
+- No console spam / no crashes
+
+## 4) Feature Modules (Full App Scope)
+
+### A) Auth + Onboarding
+- Sign in / Sign up
+- Profile setup
+- Basic onboarding tutorial
+
+### B) Courts (Current Focus)
+- Courts list + search/sort/filter
+- Court details
+- Check-in validation (radius + cooldown)
+- Court “home court” selection (later phase)
+Status: IN PROGRESS
+
+### C) Challenges (Core Gameplay)
+- Challenge types (1v1, 3pt, FT, team)
+- Create/join challenge
+- Score reporting
+- Dispute flow (later phase)
+
+### D) Leaderboards
+- Court leaderboard
+- Global leaderboard
+- “Court Champ” logic
+
+### E) Player Profiles
+- Public profile
+- Stats + badges
+- Win streaks
+
+### F) Notifications
+- In-app notifications
+- Push notifications (later)
+
+### G) Moderation / Reporting
+- Report a user
+- Report a court
+- Flag suspicious check-ins
+
+### H) Admin (Later)
+- Court management
+- Content moderation
+- Analytics
+
+## 5) Non-Goals for MVP
+- Live streaming
+- Payments/merch
+- Full social feed
+(These can be v2)
+
+## 6) Data/Backend
+- Supabase (Auth, DB, RLS)
+- Future: Edge functions for rate limiting & business logic
+
+## 7) App Navigation (High-Level)
+- Tab/Nav structure:
+  - Courts
+  - Challenges
+  - Leaderboard
+  - Profile
+  - Settings

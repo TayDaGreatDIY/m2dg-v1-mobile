@@ -23,7 +23,7 @@ class SkeletonBox extends StatelessWidget {
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: base.withOpacity(0.55),
+        color: base.withValues(alpha: 0.55),
         borderRadius: borderRadius,
       ),
     );
@@ -79,19 +79,19 @@ class CourtCardSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return const Card(
       clipBehavior: Clip.antiAlias,
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: EdgeInsets.all(14),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SkeletonCircle(size: 44),
-            const SizedBox(width: 12),
+            SkeletonCircle(size: 44),
+            SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
+                children: [
                   SkeletonLine(width: 180, height: 14),
                   SizedBox(height: 10),
                   SkeletonLine(width: 120),
@@ -108,8 +108,8 @@ class CourtCardSkeleton extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(width: 12),
-            const SkeletonBox(
+            SizedBox(width: 12),
+            SkeletonBox(
               width: 84,
               height: 36,
               borderRadius: BorderRadius.all(Radius.circular(12)),

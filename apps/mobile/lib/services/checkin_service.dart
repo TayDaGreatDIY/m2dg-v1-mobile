@@ -26,7 +26,7 @@ class CheckInResult {
 class CheckInService {
   final SupabaseClient supabase;
 
-  static const Duration cooldown = Duration(minutes: 10);
+  static const Duration cooldown = Duration(minutes: 20);
   static const double accuracyRequiredMeters = 75; // tune later for Android
 
   const CheckInService(this.supabase);
@@ -188,6 +188,24 @@ class CheckInService {
       accuracyMeters: pos.accuracy,
       cooldownRemaining: cooldown,
     );
+  }
+
+  /// Leave/checkout from a court - removes all check-ins
+  Future<void> leaveGame(String courtId) async {
+    try {
+      final user = supabase.auth.currentUser;
+      if (user == null) throw Exception('Not authenticated');
+
+      // Delete all check-ins for this user at this court
+      await supabase
+          .from('checkins')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('court_id', courtId);
+    } catch (e) {
+      print('Error leaving game: $e');
+      rethrow;
+    }
   }
 
   // optional helper (if you want rounding consistency later)

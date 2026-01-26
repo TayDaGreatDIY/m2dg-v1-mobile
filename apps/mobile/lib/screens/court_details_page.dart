@@ -34,6 +34,7 @@ class _CourtDetailsPageState extends State<CourtDetailsPage> {
 
   bool _loading = true;
   bool _checkingIn = false;
+  bool _leavingGame = false;
 
   // Court data
   Map<String, dynamic>? _court;
@@ -50,6 +51,9 @@ class _CourtDetailsPageState extends State<CourtDetailsPage> {
   List<Map<String, dynamic>> _recentCheckins = const [];
 
   bool _devPinToCourtCoords = false;
+
+  // Track if user is in queue/game
+  bool _inQueueOrGame = false;
 
   @override
   void initState() {
@@ -157,14 +161,40 @@ class _CourtDetailsPageState extends State<CourtDetailsPage> {
 
       final recentList = (recent as List).cast<Map<String, dynamic>>();
 
+      // 4) check if user is in queue/game (court_queues)
+      final queueRows = await supabase
+          .from('court_queues')
+          .select('id, status')
+          .eq('court_id', widget.courtId)
+          .eq('user_id', user.id)
+          .order('created_at', ascending: false)
+          .limit(1);
+
+      bool inQueueOrGame = false;
+      if (queueRows.isNotEmpty) {
+        final status = (queueRows.first as Map)['status'] as String?;
+        if (status == 'waiting' || status == 'called_next' || status == 'checked_in') {
+          inQueueOrGame = true;
+        }
+      }
+
       setState(() {
         _lastCheckinUtc = lastUtc;
         _myTotalHere = myTotalHere;
         _recentCheckins = recentList;
+        _inQueueOrGame = inQueueOrGame;
         _loading = false;
       });
 
-      _recomputeCooldownAndTicker();
+      // Cooldown starts when you check in (lastUtc exists)
+      // Shows regardless of queue status - it's a court-wide cooldown
+      if (lastUtc != null) {
+        _recomputeCooldownAndTicker();
+      } else {
+        _cooldownRemaining = Duration.zero;
+        _tick?.cancel();
+        _tick = null;
+      }
     } catch (e) {
       setState(() => _loading = false);
       _toast('Failed to load court activity: $e');
@@ -252,6 +282,77 @@ class _CourtDetailsPageState extends State<CourtDetailsPage> {
     }
   }
 
+  Future<void> _leaveGame() async {
+    if (_leavingGame) return;
+
+    setState(() => _leavingGame = true);
+
+    try {
+      final user = supabase.auth.currentUser;
+      if (user == null) throw Exception('Not authenticated');
+
+      // Remove from queue at this court
+      await supabase
+          .from('court_queues')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('court_id', widget.courtId);
+
+      // Also remove check-in
+      await _checkins.leaveGame(widget.courtId);
+
+      // Immediately clear the cooldown, last check-in, and queue/game flag
+      setState(() {
+        _lastCheckinUtc = null;
+        _cooldownRemaining = Duration.zero;
+        _inQueueOrGame = false;
+      });
+
+      // Cancel the cooldown ticker
+      _tick?.cancel();
+      _tick = null;
+
+      _toast('You have left the game ✅');
+
+      // Refresh activity to update the recent checkins list and queue/game status
+      await _loadActivity();
+    } catch (e) {
+      _toast('Failed to leave game: $e');
+    } finally {
+      if (mounted) setState(() => _leavingGame = false);
+    }
+  }
+
+  Future<void> _leaveCourt() async {
+    if (_leavingGame) return;
+
+    setState(() => _leavingGame = true);
+
+    try {
+      // Delete the check-in first
+      await _checkins.leaveGame(widget.courtId);
+
+      // Cancel the cooldown ticker immediately
+      _tick?.cancel();
+      _tick = null;
+
+      // Clear state immediately
+      setState(() {
+        _lastCheckinUtc = null;
+        _cooldownRemaining = Duration.zero;
+      });
+
+      _toast('You have left the court ✅');
+
+      // Refresh activity - this should now show no check-in and no cooldown
+      await _loadActivity();
+    } catch (e) {
+      _toast('Failed to leave court: $e');
+    } finally {
+      if (mounted) setState(() => _leavingGame = false);
+    }
+  }
+
   // ----------------------------
   // UI helpers
   // ----------------------------
@@ -279,7 +380,7 @@ class _CourtDetailsPageState extends State<CourtDetailsPage> {
         color: cs.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(999),
         border: Border.all(
-          color: Theme.of(context).dividerColor.withOpacity(0.25),
+          color: Theme.of(context).dividerColor.withValues(alpha: 0.25),
         ),
       ),
       child: Text(
@@ -377,19 +478,67 @@ class _CourtDetailsPageState extends State<CourtDetailsPage> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                FilledButton.tonal(
-                  onPressed: (_checkingIn ||
-                          _cooldownRemaining > Duration.zero ||
-                          c == null)
-                      ? null
-                      : _checkIn,
-                  child: _checkingIn
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Check in'),
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton.tonal(
+                        onPressed: (_checkingIn ||
+                                _cooldownRemaining > Duration.zero ||
+                                c == null)
+                            ? null
+                            : _checkIn,
+                        child: _checkingIn
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Text('Check in'),
+                      ),
+                    ),
+                    if (_inQueueOrGame) ...[
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: _leavingGame ? null : _leaveGame,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: Theme.of(context).colorScheme.error,
+                          ),
+                          child: _leavingGame
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  ),
+                                )
+                              : const Text('Leave Game'),
+                        ),
+                      ),
+                    ],
+                    if (!_inQueueOrGame && _cooldownRemaining > Duration.zero) ...[
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: _leavingGame ? null : _leaveCourt,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: Theme.of(context).colorScheme.error,
+                          ),
+                          child: _leavingGame
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  ),
+                                )
+                              : const Text('Leave Court'),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
                 if (_distanceMeters != null || _accuracyMeters != null) ...[
                   const SizedBox(height: 12),
