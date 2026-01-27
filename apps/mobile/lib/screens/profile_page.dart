@@ -29,7 +29,7 @@ class _ProfilePageState extends State<ProfilePage> {
       _profileFuture = supabase
           .from('profiles')
           .select()
-          .eq('id', userId)
+          .eq('user_id', userId)
           .single()
           .then((data) => data as Map<String, dynamic>?)
           .catchError((_) => null);
@@ -42,7 +42,7 @@ class _ProfilePageState extends State<ProfilePage> {
       _statsFuture = supabase
           .from('player_stats')
           .select()
-          .eq('player_id', userId)
+          .eq('user_id', userId)
           .maybeSingle()
           .then((data) => data != null ? PlayerStats.fromJson(data) : null)
           .catchError((_) => null);
@@ -234,6 +234,12 @@ class _ProfilePageState extends State<ProfilePage> {
                             onPressed: () => context.push('/social'),
                             icon: const Icon(Icons.people),
                             label: const Text('Friends & Social'),
+                          ),
+                          const SizedBox(height: 12),
+                          FilledButton.icon(
+                            onPressed: () => context.push('/messages'),
+                            icon: const Icon(Icons.mail_outline),
+                            label: const Text('Messages & Inbox'),
                           ),
                           const SizedBox(height: 12),
                           FilledButton.tonal(
