@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 
 final supabase = Supabase.instance.client;
@@ -75,6 +76,11 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
   }
 
   Future<void> _pickImage() async {
+    if (kIsWeb) {
+      _toast('Image upload available on mobile app only');
+      return;
+    }
+
     try {
       final picker = ImagePicker();
       final pickedFile = await picker.pickImage(source: ImageSource.gallery);
@@ -84,11 +90,12 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
       }
     } catch (e) {
       _toast('Failed to pick image: $e');
+      print('Image picker error: $e');
     }
   }
 
   Future<String?> _uploadImage(String userId) async {
-    if (_selectedImage == null) return null;
+    if (_selectedImage == null || kIsWeb) return null;
 
     try {
       setState(() => _uploadingImage = true);
@@ -203,44 +210,73 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
               const SizedBox(height: 32),
 
               // Avatar Section
-              Center(
-                child: GestureDetector(
-                  onTap: _loading ? null : _pickImage,
+              if (!kIsWeb)
+                Center(
+                  child: GestureDetector(
+                    onTap: _loading ? null : _pickImage,
+                    child: Container(
+                      width: 120,
+                      height: 120,
+                      decoration: BoxDecoration(
+                        color: _selectedImage == null ? cs.primaryContainer : Colors.grey[200],
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: cs.outline,
+                          width: 2,
+                        ),
+                        image: _selectedImage != null
+                            ? DecorationImage(
+                                image: FileImage(_selectedImage!),
+                                fit: BoxFit.cover,
+                              )
+                            : null,
+                      ),
+                      child: _selectedImage == null
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.camera_alt, color: cs.onPrimaryContainer, size: 32),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Add Photo',
+                                    style: tt.bodySmall?.copyWith(color: cs.onPrimaryContainer),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : null,
+                    ),
+                  ),
+                )
+              else
+                Center(
                   child: Container(
                     width: 120,
                     height: 120,
                     decoration: BoxDecoration(
-                      color: _selectedImage == null ? cs.primaryContainer : Colors.grey[200],
+                      color: cs.primaryContainer,
                       shape: BoxShape.circle,
                       border: Border.all(
                         color: cs.outline,
                         width: 2,
                       ),
-                      image: _selectedImage != null
-                          ? DecorationImage(
-                              image: FileImage(_selectedImage!),
-                              fit: BoxFit.cover,
-                            )
-                          : null,
                     ),
-                    child: _selectedImage == null
-                        ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.camera_alt, color: cs.onPrimaryContainer, size: 32),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Add Photo',
-                                  style: tt.bodySmall?.copyWith(color: cs.onPrimaryContainer),
-                                ),
-                              ],
-                            ),
-                          )
-                        : null,
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.account_circle, color: cs.onPrimaryContainer, size: 32),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Web Preview',
+                            style: tt.bodySmall?.copyWith(color: cs.onPrimaryContainer),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
-              ),
               if (_uploadingImage)
                 Padding(
                   padding: const EdgeInsets.only(top: 12),

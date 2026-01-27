@@ -61,13 +61,15 @@ class _OnboardingPageState extends State<OnboardingPage> {
           'orientation_completed': true,
           'updated_at': DateTime.now().toIso8601String(),
         }).eq('user_id', user.id);
+        print('✅ Orientation marked complete for user ${user.id}');
       }
     } catch (e) {
       // Silent fail - still navigate
       print('Error marking orientation complete: $e');
     }
     if (mounted) {
-      context.go('/');
+      print('🚀 Navigating to dashboard (courts)');
+      context.goNamed('courts');
     }
   }
 
