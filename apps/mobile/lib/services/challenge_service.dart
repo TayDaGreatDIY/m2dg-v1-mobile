@@ -218,4 +218,26 @@ class ChallengeService {
       throw Exception('Failed to approve challenge: $e');
     }
   }
+
+  /// Fetch opponent name by user ID
+  static Future<String> fetchOpponentName(String userId) async {
+    try {
+      final response = await supabase
+          .from('profiles')
+          .select('username, display_name')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+      if (response == null) {
+        return 'Unknown Player';
+      }
+
+      return (response['display_name'] as String?) ?? 
+             (response['username'] as String?) ?? 
+             'Unknown Player';
+    } catch (e) {
+      print('❌ Error fetching opponent name: $e');
+      return 'Unknown Player';
+    }
+  }
 }

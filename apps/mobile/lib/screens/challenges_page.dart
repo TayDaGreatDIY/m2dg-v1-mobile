@@ -209,50 +209,59 @@ class _ChallengesPageState extends State<ChallengesPage> {
                 ],
               ),
               const SizedBox(height: 12),
-              // Opponent info
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: 20,
-                    backgroundColor: cs.tertiary,
-                    child: Text(
-                      challenge.opponentId?.substring(0, 1).toUpperCase() ?? '?',
-                      style: tt.bodySmall?.copyWith(
-                        color: cs.onTertiary,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          challenge.opponentId ?? 'Open Challenge',
-                          style: tt.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
+              // Opponent info with name fetching
+              FutureBuilder<String>(
+                future: challenge.opponentId != null
+                    ? ChallengeService.fetchOpponentName(challenge.opponentId!)
+                    : Future.value('Open Challenge'),
+                builder: (context, snapshot) {
+                  final opponentName = snapshot.data ?? 'Loading...';
+                  
+                  return Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 20,
+                        backgroundColor: cs.tertiary,
+                        child: Text(
+                          opponentName.substring(0, 1).toUpperCase(),
+                          style: tt.bodySmall?.copyWith(
+                            color: cs.onTertiary,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                        if (challenge.hasWager)
-                          Text(
-                            '\$${challenge.wagerAmount?.toStringAsFixed(2) ?? '0.00'} wager',
-                            style: tt.labelSmall?.copyWith(
-                              color: cs.tertiary,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  if (isCreator)
-                    Chip(
-                      label: const Text('You'),
-                      backgroundColor: cs.secondary.withValues(alpha: 0.3),
-                      labelStyle: tt.labelSmall?.copyWith(
-                        color: cs.onSecondary,
                       ),
-                    ),
-                ],
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              opponentName,
+                              style: tt.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            if (challenge.hasWager)
+                              Text(
+                                '\$${challenge.wagerAmount?.toStringAsFixed(2) ?? '0.00'} wager',
+                                style: tt.labelSmall?.copyWith(
+                                  color: cs.tertiary,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      if (isCreator)
+                        Chip(
+                          label: const Text('You'),
+                          backgroundColor: cs.secondary.withValues(alpha: 0.3),
+                          labelStyle: tt.labelSmall?.copyWith(
+                            color: cs.onSecondary,
+                          ),
+                        ),
+                    ],
+                  );
+                },
               ),
             ],
           ),
