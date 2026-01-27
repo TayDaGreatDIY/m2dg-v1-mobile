@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:timeago/timeago.dart' as timeago;
+import '../services/notification_service.dart';
 
 final supabase = Supabase.instance.client;
 
@@ -144,6 +145,15 @@ class _MessagesPageState extends State<MessagesPage> {
         'recipient_id': widget.recipientId,
         'message': text,
       });
+
+      // Create notification for recipient
+      await NotificationService.createNotification(
+        userId: widget.recipientId,
+        type: 'message',
+        title: 'New Message',
+        message: text.length > 50 ? '${text.substring(0, 50)}...' : text,
+        data: {'senderId': userId},
+      );
 
       _messageController.clear();
       if (mounted) {

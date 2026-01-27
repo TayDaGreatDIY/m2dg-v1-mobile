@@ -117,7 +117,7 @@ class _MainShellState extends State<MainShell> {
           Stack(
             children: [
               IconButton(
-                icon: const Icon(Icons.notifications_outlined),
+                icon: const Icon(Icons.sports_basketball),
                 onPressed: () {
                   context.push('/notifications');
                   // Reload count after viewing notifications
@@ -129,10 +129,27 @@ class _MainShellState extends State<MainShell> {
                   right: 8,
                   top: 8,
                   child: Container(
-                    padding: const EdgeInsets.all(4),
+                    width: 20,
+                    height: 20,
+                    padding: const EdgeInsets.all(2),
                     decoration: BoxDecoration(
                       color: Colors.red,
                       shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        _unreadCount > 99 ? '99+' : '$_unreadCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
                     ),
                     constraints: const BoxConstraints(
                       minWidth: 18,

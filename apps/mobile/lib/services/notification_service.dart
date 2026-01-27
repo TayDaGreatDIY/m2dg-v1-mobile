@@ -85,4 +85,46 @@ class NotificationService {
       print('Error deleting notification: $e');
     }
   }
+
+  // Get unread notification count
+  static Future<int> getUnreadCount() async {
+    try {
+      final userId = supabase.auth.currentUser?.id;
+      if (userId == null) return 0;
+
+      final response = await supabase
+          .from('notifications')
+          .select()
+          .eq('user_id', userId)
+          .is_('read_at', null)
+          .count(CountOption.exact);
+
+      return response.count;
+    } catch (e) {
+      print('Error getting unread count: $e');
+      return 0;
+    }
+  }
+
+  // Subscribe to unread count changes
+  static Stream<int> subscribeToUnreadCount() async* {
+    try {
+      final userId = supabase.auth.currentUser?.id;
+      if (userId == null) {
+        yield 0;
+        return;
+      }
+
+      await for (final _ in supabase
+          .from('notifications')
+          .stream(primaryKey: ['id'])
+          .eq('user_id', userId)) {
+        final count = await getUnreadCount();
+        yield count;
+      }
+    } catch (e) {
+      print('Error in unread count subscription: $e');
+      yield 0;
+    }
+  }
 }
