@@ -115,11 +115,13 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
   void _filterPlayers() {
     var filtered = List<Map<String, dynamic>>.from(_allPlayers);
 
-    // Filter by skill level
+    // Filter by skill level (case-insensitive comparison)
     if (_skillFilter != null && _skillFilter != 'All') {
       filtered = filtered.where((p) {
         final profile = p['profile'] as Map?;
-        return profile?['skill_level'] == _skillFilter;
+        final skillFromProfile = (profile?['skill_level'] as String? ?? '').toLowerCase();
+        final skillFilter = (_skillFilter ?? '').toLowerCase();
+        return skillFromProfile == skillFilter;
       }).toList();
     }
 

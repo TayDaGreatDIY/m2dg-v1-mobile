@@ -23,11 +23,14 @@ class _PlayerProfilePageState extends State<PlayerProfilePage> {
   Map<String, dynamic>? _profile;
   Map<String, dynamic>? _stats;
   Map<String, dynamic>? _court;
+  bool _isFriend = false;
+  bool _checkingFriendship = false;
 
   @override
   void initState() {
     super.initState();
     _loadProfile();
+    _checkFriendshipStatus();
   }
 
   Future<void> _loadProfile() async {
@@ -73,6 +76,51 @@ class _PlayerProfilePageState extends State<PlayerProfilePage> {
         _error = 'Failed to load profile: $e';
         _loading = false;
       });
+    }
+  }
+
+  Future<void> _checkFriendshipStatus() async {
+    try {
+      final currentUser = supabase.auth.currentUser;
+      if (currentUser == null || currentUser.id == widget.userId) {
+        setState(() => _isFriend = false);
+        return;
+      }
+
+      final friendship = await supabase
+          .from('friendships')
+          .select('status')
+          .eq('user_id', currentUser.id)
+          .eq('friend_id', widget.userId)
+          .maybeSingle();
+
+      setState(() => _isFriend = friendship != null && friendship['status'] == 'accepted');
+    } catch (e) {
+      print('Error checking friendship: $e');
+    }
+  }
+
+  Future<void> _addFriend() async {
+    try {
+      setState(() => _checkingFriendship = true);
+      final currentUser = supabase.auth.currentUser;
+      if (currentUser == null) return;
+
+      await supabase.from('friendships').insert({
+        'user_id': currentUser.id,
+        'friend_id': widget.userId,
+        'status': 'pending',
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Friend request sent!')),
+      );
+      setState(() => _checkingFriendship = false);
+    } catch (e) {
+      setState(() => _checkingFriendship = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
     }
   }
 
@@ -141,6 +189,10 @@ class _PlayerProfilePageState extends State<PlayerProfilePage> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.pop(),
+        ),
         title: const Text('Player Profile'),
         actions: [
           IconButton(
@@ -210,6 +262,23 @@ class _PlayerProfilePageState extends State<PlayerProfilePage> {
                         ),
                     ],
                   ),
+                  const SizedBox(height: 16),
+                  // Follow/Friend Button (if not current user)
+                  if (supabase.auth.currentUser?.id != widget.userId)
+                    SizedBox(
+                      width: double.infinity,
+                      child: _isFriend
+                          ? OutlinedButton.icon(
+                              icon: const Icon(Icons.done),
+                              label: const Text('Friends'),
+                              onPressed: null,
+                            )
+                          : FilledButton.icon(
+                              icon: const Icon(Icons.person_add),
+                              label: const Text('Follow'),
+                              onPressed: _checkingFriendship ? null : _addFriend,
+                            ),
+                    ),
                 ],
               ),
             ),
