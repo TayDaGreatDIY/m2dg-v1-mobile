@@ -66,31 +66,33 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
         _error = null;
       });
 
-      // Fetch all player stats with profiles
-      final response = await supabase
+      // Fetch all player stats
+      final statsResponse = await supabase
           .from('player_stats')
-          .select('''
-            *,
-            profiles:user_id(
-              id,
-              user_id,
-              username,
-              display_name,
-              skill_level,
-              avatar_url
-            )
-          ''')
+          .select('*')
           .order('total_wins', ascending: false);
 
-      final players = (response as List).map((row) {
-        final rowMap = Map<String, dynamic>.from(row as Map);
-        final profiles = rowMap['profiles'] as List?;
-        final profile = profiles != null && profiles.isNotEmpty 
-            ? Map<String, dynamic>.from(profiles.first as Map)
-            : null;
-        
+      // Fetch all profiles
+      final profilesResponse = await supabase
+          .from('profiles')
+          .select('*');
+
+      // Convert to proper maps
+      final statsList = (statsResponse as List).map((row) {
+        return Map<String, dynamic>.from(row as Map);
+      }).toList();
+
+      final profilesMap = {
+        for (var p in (profilesResponse as List))
+          (p['user_id'] as String): Map<String, dynamic>.from(p as Map)
+      };
+
+      // Merge stats with profiles
+      final players = statsList.map((stat) {
+        final userId = stat['user_id'] as String;
+        final profile = profilesMap[userId];
         return {
-          ...rowMap,
+          ...stat,
           'profile': profile,
         };
       }).toList();
