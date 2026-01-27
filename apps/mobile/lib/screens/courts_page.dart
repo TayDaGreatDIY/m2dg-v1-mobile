@@ -66,6 +66,9 @@ class _CourtsPageState extends State<CourtsPage> {
   // (Only used in debug mode — safe for MVP build speed.)
   bool _debugPinToCourtCoords = true;
 
+  // Real-time subscriptions for queue updates
+  final Map<String, RealtimeChannel> _queueChannels = {};
+
   @override
   void initState() {
     super.initState();
@@ -74,12 +77,17 @@ class _CourtsPageState extends State<CourtsPage> {
       setState(() {});
     });
     _loadAll();
+    _setupQueueSubscriptions();
   }
 
   @override
   void dispose() {
     _tick?.cancel();
     _searchCtrl.dispose();
+    // Cleanup subscriptions
+    for (final channel in _queueChannels.values) {
+      supabase.removeChannel(channel);
+    }
     super.dispose();
   }
 
@@ -88,6 +96,31 @@ class _CourtsPageState extends State<CourtsPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(msg), duration: const Duration(seconds: 2)),
     );
+  }
+
+  // Setup real-time queue subscriptions for all courts
+  void _setupQueueSubscriptions() {
+    try {
+      // Subscribe to all court_queues changes
+      final channel = supabase
+          .channel('courts_queue_updates')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'court_queues',
+            callback: (payload) {
+              // On any queue change, refresh the courts list to update counts
+              if (mounted) {
+                setState(() {});
+              }
+            },
+          )
+          .subscribe();
+      
+      _queueChannels['all'] = channel;
+    } catch (e) {
+      print('Error setting up queue subscriptions: $e');
+    }
   }
 
   void _clearFilters() {

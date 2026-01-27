@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/court_queue.dart';
 import '../services/checkin_service.dart';
 import '../services/court_queue_service.dart';
+import '../services/developer_mode_service.dart';
 
 class CourtDetailsPage extends StatefulWidget {
   final String courtId;
@@ -53,6 +54,8 @@ class _CourtDetailsPageState extends State<CourtDetailsPage> {
   List<Map<String, dynamic>> _recentCheckins = const [];
 
   bool _devPinToCourtCoords = false;
+  bool _devModeEnabled = false;
+  bool _devSimulateGps = false;
 
   // Track if user is in queue/game
   bool _inQueueOrGame = false;
@@ -75,10 +78,22 @@ class _CourtDetailsPageState extends State<CourtDetailsPage> {
 
     _court = widget.court;
 
+    _loadDeveloperSettings();
     _loadCourtIfNeeded();
     _loadActivity();
     _loadQueue();
     _setupQueueSubscription();
+  }
+
+  Future<void> _loadDeveloperSettings() async {
+    final devMode = await DeveloperModeService.isDeveloperMode();
+    final simGps = await DeveloperModeService.isGpsSimulationEnabled();
+    if (mounted) {
+      setState(() {
+        _devModeEnabled = devMode;
+        _devSimulateGps = simGps;
+      });
+    }
   }
 
   @override
@@ -410,6 +425,7 @@ class _CourtDetailsPageState extends State<CourtDetailsPage> {
         courtLng: lng,
         radiusMeters: radius,
         debugPinToCourtCoords: kDebugMode && _devPinToCourtCoords,
+        devSimulateGps: _devSimulateGps,
       );
 
       setState(() {
@@ -918,6 +934,24 @@ class _CourtDetailsPageState extends State<CourtDetailsPage> {
                     value: _devPinToCourtCoords,
                     onChanged: (v) {
                       setState(() => _devPinToCourtCoords = v);
+                    },
+                  ),
+                ],
+                if (_devModeEnabled) ...[
+                  const SizedBox(height: 12),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('🔧 GPS Simulation (Dev)'),
+                    subtitle: const Text(
+                      'Simulate being close to the court for testing check-ins',
+                    ),
+                    value: _devSimulateGps,
+                    onChanged: (v) async {
+                      await DeveloperModeService.setSimulateGps(v);
+                      if (mounted) {
+                        setState(() => _devSimulateGps = v);
+                        _toast(v ? '✅ GPS Simulation ON' : '❌ GPS Simulation OFF');
+                      }
                     },
                   ),
                 ],

@@ -57,6 +57,7 @@ class CheckInService {
     required double courtLng,
     required int radiusMeters,
     required bool debugPinToCourtCoords,
+    bool devSimulateGps = false,
   }) async {
     await ensureSignedIn();
 
@@ -101,7 +102,8 @@ class CheckInService {
 
     // 2) location
     Position pos;
-    if (kDebugMode && debugPinToCourtCoords) {
+    // Use dev simulate GPS if enabled OR if debugPinToCourtCoords is set
+    if ((kDebugMode && debugPinToCourtCoords) || devSimulateGps) {
       // DEV: pretend your GPS is exactly on the court
       pos = Position(
         latitude: courtLat,

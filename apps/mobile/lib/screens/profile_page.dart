@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:go_router/go_router.dart';
 import '../models/player_stats.dart';
+import '../services/developer_mode_service.dart';
 
 final supabase = Supabase.instance.client;
 
@@ -16,11 +17,26 @@ class _ProfilePageState extends State<ProfilePage> {
   late Future<Map<String, dynamic>?> _profileFuture;
   late Future<PlayerStats?> _statsFuture;
 
+  bool _devModeEnabled = false;
+  bool _devSimulateGps = false;
+
   @override
   void initState() {
     super.initState();
     _loadProfile();
     _loadStats();
+    _loadDeveloperMode();
+  }
+
+  Future<void> _loadDeveloperMode() async {
+    final devMode = await DeveloperModeService.isDeveloperMode();
+    final simGps = await DeveloperModeService.isGpsSimulationEnabled();
+    if (mounted) {
+      setState(() {
+        _devModeEnabled = devMode;
+        _devSimulateGps = simGps;
+      });
+    }
   }
 
   void _loadProfile() {
@@ -240,6 +256,98 @@ class _ProfilePageState extends State<ProfilePage> {
                             onPressed: () => context.push('/messages-inbox'),
                             icon: const Icon(Icons.mail_outline),
                             label: const Text('Messages & Inbox'),
+                          ),
+                          const SizedBox(height: 24),
+                          // Developer Settings Section
+                          if (_devModeEnabled)
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: cs.tertiaryContainer,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: cs.tertiary),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        '🔧 Developer Mode',
+                                        style: tt.titleSmall?.copyWith(
+                                          color: cs.onTertiaryContainer,
+                                        ),
+                                      ),
+                                      Switch(
+                                        value: _devSimulateGps,
+                                        onChanged: (v) async {
+                                          await DeveloperModeService
+                                              .setSimulateGps(v);
+                                          if (mounted) {
+                                            setState(
+                                                () => _devSimulateGps = v);
+                                            ScaffoldMessenger.of(context)
+                                                .showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                  v
+                                                      ? '✅ GPS Simulation Enabled'
+                                                      : '❌ GPS Simulation Disabled',
+                                                ),
+                                                duration: const Duration(
+                                                    seconds: 2),
+                                              ),
+                                            );
+                                          }
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                  Text(
+                                    'Simulate GPS Location\nYou\'ll be treated as close to courts for testing check-ins',
+                                    style: tt.bodySmall?.copyWith(
+                                      color: cs.onTertiaryContainer,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'When enabled, check-ins will succeed without GPS validation',
+                                    style: tt.labelSmall?.copyWith(
+                                      color: cs.onTertiaryContainer
+                                          .withValues(alpha: 0.7),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          const SizedBox(height: 24),
+                          // Developer Mode Toggle
+                          OutlinedButton.icon(
+                            onPressed: () async {
+                              final newMode = await DeveloperModeService
+                                  .toggleDeveloperMode();
+                              if (mounted) {
+                                setState(() => _devModeEnabled = newMode);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      newMode
+                                          ? '✅ Developer Mode Enabled'
+                                          : '❌ Developer Mode Disabled',
+                                    ),
+                                    duration: const Duration(seconds: 2),
+                                  ),
+                                );
+                              }
+                            },
+                            icon: const Icon(Icons.bug_report),
+                            label: Text(
+                              _devModeEnabled
+                                  ? 'Developer Mode (ON)'
+                                  : 'Developer Mode (OFF)',
+                            ),
                           ),
                           const SizedBox(height: 12),
                           FilledButton.tonal(
