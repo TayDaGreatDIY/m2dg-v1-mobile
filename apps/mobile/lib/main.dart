@@ -20,6 +20,7 @@ import 'screens/notifications_page.dart';
 import 'screens/active_game_page.dart';
 import 'screens/social_page.dart';
 import 'screens/messages_page.dart';
+import 'screens/messages_inbox_page.dart';
 import 'screens/court_admin_page.dart';
 import 'widgets/main_shell.dart';
 
@@ -180,6 +181,11 @@ class _M2DGAppState extends State<M2DGApp> {
               path: '/social',
               name: 'social',
               builder: (context, state) => const SocialPage(),
+            ),
+            GoRoute(
+              path: '/messages-inbox',
+              name: 'messagesInbox',
+              builder: (context, state) => const MessagesInboxPage(),
             ),
             GoRoute(
               path: '/messages/:recipientId',

@@ -237,7 +237,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           ),
                           const SizedBox(height: 12),
                           FilledButton.icon(
-                            onPressed: () => context.push('/messages'),
+                            onPressed: () => context.push('/messages-inbox'),
                             icon: const Icon(Icons.mail_outline),
                             label: const Text('Messages & Inbox'),
                           ),
