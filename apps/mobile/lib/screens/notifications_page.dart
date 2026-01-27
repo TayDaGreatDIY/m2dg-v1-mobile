@@ -198,24 +198,24 @@ class _NotificationsPageState extends State<NotificationsPage> {
         // Navigate to messages page with sender ID
         if (notification.data != null && notification.data!.containsKey('senderId')) {
           final senderId = notification.data!['senderId'] as String;
-          context.push('/messages/$senderId');
+          context.go('/messages/$senderId');
         }
         break;
       case 'friend_request':
         // Navigate to social/friends page
-        context.push('/social');
+        context.go('/social');
         break;
       case 'challenge':
         // Navigate to challenges page
-        context.push('/challenges');
+        context.go('/challenges');
         break;
       case 'game_result':
         // Navigate to leaderboard
-        context.push('/leaderboard');
+        context.go('/leaderboard');
         break;
       case 'queue_update':
         // Navigate to courts list
-        context.push('/');
+        context.go('/');
         break;
       default:
         // Default: stay on notifications page

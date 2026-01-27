@@ -16,6 +16,7 @@ import 'screens/challenge_details_page.dart';
 import 'screens/opponent_search_page.dart';
 import 'screens/leaderboard_page.dart';
 import 'screens/profile_page.dart';
+import 'screens/player_profile_page.dart';
 import 'screens/notifications_page.dart';
 import 'screens/active_game_page.dart';
 import 'screens/social_page.dart';
@@ -164,6 +165,14 @@ class _M2DGAppState extends State<M2DGApp> {
               builder: (context, state) => const ProfilePage(),
             ),
             GoRoute(
+              path: '/player/:userId',
+              name: 'playerProfile',
+              builder: (context, state) {
+                final userId = state.pathParameters['userId']!;
+                return PlayerProfilePage(userId: userId);
+              },
+            ),
+            GoRoute(
               path: '/notifications',
               name: 'notifications',
               builder: (context, state) => const NotificationsPage(),
@@ -210,7 +219,7 @@ class _M2DGAppState extends State<M2DGApp> {
         appBar: AppBar(title: const Text('M2DG')),
         body: Center(child: Text(state.error.toString())),
       ),
-      redirect: (context, state) {
+      redirect: (context, state) async {
         final user = supabase.auth.currentUser;
         final location = state.matchedLocation;
         final isSigningIn = location == '/sign-in';
@@ -218,31 +227,54 @@ class _M2DGAppState extends State<M2DGApp> {
         final isProfileSetup = location == '/profile-setup';
         final isOnboarding = location == '/onboarding';
 
-        print('🔐 AUTH DEBUG: location=$location, user=$user');
+        print('🔐 AUTH: location=$location, user=${user?.id}');
 
         // No user: redirect to sign in
         if (user == null) {
           if (isSigningIn || isSigningUp) {
-            print('🔐 User null, on auth page - allowing access');
             return null;
           }
-          print('🔐 User null, not on auth page - redirecting to /sign-in');
+          print('🔐 No user, redirecting to /sign-in');
           return '/sign-in';
-        }
-
-        // User exists: allow profile setup and onboarding flows
-        if (isProfileSetup || isOnboarding) {
-          print('🔐 User on setup flow - allowing access');
-          return null;
         }
 
         // User exists: redirect away from sign in/up pages
         if (isSigningIn || isSigningUp) {
-          print('🔐 User exists, on auth page - redirecting to /');
+          print('🔐 User logged in, redirecting to /');
           return '/';
         }
 
-        print('🔐 User exists, not on setup pages - allowing access to app');
+        // User exists: check orientation status
+        try {
+          final profile = await supabase
+              .from('profiles')
+              .select('orientation_completed')
+              .eq('user_id', user.id)
+              .single();
+          
+          final orientationCompleted = profile['orientation_completed'] as bool? ?? false;
+          print('🔐 Orientation completed: $orientationCompleted, on page: $location');
+          
+          // If user hasn't completed orientation and not already there, send them there
+          if (!orientationCompleted && !isOnboarding && !isProfileSetup) {
+            print('🔐 User not oriented, sending to /onboarding');
+            return '/onboarding';
+          }
+          
+          // If user HAS completed orientation, don't show onboarding
+          if (orientationCompleted && (isOnboarding || isProfileSetup)) {
+            print('🔐 User oriented but on setup page, redirecting to /');
+            return '/';
+          }
+        } catch (e) {
+          print('🔐 Error checking orientation: $e');
+          // If error, check if user needs profile setup
+          if (!isProfileSetup && !isOnboarding) {
+            return '/profile-setup';
+          }
+        }
+
+        print('🔐 User exists, allowing access to current page');
         return null;
       },
     );

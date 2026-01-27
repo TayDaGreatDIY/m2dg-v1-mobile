@@ -58,12 +58,13 @@ class _OnboardingPageState extends State<OnboardingPage> {
       final user = supabase.auth.currentUser;
       if (user != null) {
         await supabase.from('profiles').update({
-          'show_onboarding': false,
+          'orientation_completed': true,
           'updated_at': DateTime.now().toIso8601String(),
-        }).eq('id', user.id);
+        }).eq('user_id', user.id);
       }
     } catch (e) {
       // Silent fail - still navigate
+      print('Error marking orientation complete: $e');
     }
     if (mounted) {
       context.go('/');
