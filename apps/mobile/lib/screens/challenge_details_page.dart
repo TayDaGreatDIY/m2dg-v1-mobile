@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:mobile/models/challenge.dart';
 import 'package:mobile/services/challenge_service.dart';
+import 'package:mobile/services/developer_mode_service.dart';
 
 final supabase = Supabase.instance.client;
 
@@ -22,11 +23,60 @@ class _ChallengeDetailsPageState extends State<ChallengeDetailsPage> {
   bool _agreeToScoring = false;
   bool _isProcessing = false;
   bool _isCreator = false;
+  String? _courtName;
+  bool _isDevMode = false;
+
+  Future<String> _fetchCourtName(String courtId) async {
+    if (_courtName != null) return _courtName!;
+    
+    try {
+      final court = await supabase
+          .from('courts')
+          .select('name')
+          .eq('id', courtId)
+          .maybeSingle();
+      
+      final name = court?['name'] as String? ?? 'Unknown Court';
+      setState(() => _courtName = name);
+      return name;
+    } catch (e) {
+      print('Error fetching court name: $e');
+      return 'Unknown Court';
+    }
+  }
+
+  Future<void> _approveChallenge() async {
+    setState(() => _isProcessing = true);
+    try {
+      await ChallengeService.approveChallenge(widget.challengeId);
+      if (!mounted) return;
+
+      setState(() {
+        _challengeFuture = ChallengeService.fetchChallenge(widget.challengeId);
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Challenge approved!')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error approving challenge: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
+  }
 
   @override
   void initState() {
     super.initState();
     _challengeFuture = ChallengeService.fetchChallenge(widget.challengeId);
+    _loadDevMode();
+  }
+
+  Future<void> _loadDevMode() async {
+    final isDev = await DeveloperModeService.isDeveloperMode();
+    setState(() => _isDevMode = isDev);
   }
 
   Future<void> _acceptChallenge() async {
@@ -205,9 +255,14 @@ class _ChallengeDetailsPageState extends State<ChallengeDetailsPage> {
                               color: cs.onSurfaceVariant,
                             ),
                           ),
-                          Text(
-                            challenge.courtId,
-                            style: tt.bodyLarge,
+                          FutureBuilder<String>(
+                            future: _fetchCourtName(challenge.courtId),
+                            builder: (context, snapshot) {
+                              return Text(
+                                snapshot.data ?? 'Loading...',
+                                style: tt.bodyLarge,
+                              );
+                            },
                           ),
                           if (challenge.hasWager) ...[
                             const SizedBox(height: 12),
@@ -301,6 +356,47 @@ class _ChallengeDetailsPageState extends State<ChallengeDetailsPage> {
                         const SizedBox(height: 24),
                       ],
                     ),
+
+                  // Dev mode approval button
+                  if (_isDevMode && isPending) ...[
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: cs.secondaryContainer,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: cs.outline),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '⚙️ DEV MODE: Approve Challenge',
+                            style: tt.labelSmall?.copyWith(
+                              color: cs.onSurfaceVariant,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            child: FilledButton(
+                              onPressed: _isProcessing ? null : _approveChallenge,
+                              child: _isProcessing
+                                  ? const SizedBox(
+                                      height: 18,
+                                      width: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                      ),
+                                    )
+                                  : const Text('Approve Challenge'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
 
                   // Actions
                   if (isOpen && !isCreator) ...[

@@ -203,4 +203,19 @@ class ChallengeService {
       throw Exception('Failed to update scoring agreement: $e');
     }
   }
+
+  /// Approve a pending challenge (admin/dev only)
+  static Future<void> approveChallenge(String challengeId) async {
+    try {
+      await supabase
+          .from('challenges')
+          .update({'status': 'open'})
+          .eq('id', challengeId);
+      
+      print('✅ Challenge approved: $challengeId');
+    } catch (e) {
+      print('❌ Error approving challenge: $e');
+      throw Exception('Failed to approve challenge: $e');
+    }
+  }
 }

@@ -617,7 +617,7 @@ class _CourtsPageState extends State<CourtsPage> {
                 onTap: () => _openCourt(c),
                 onCheckIn: onCheckIn,
                 waitingCount: waitingCount > 0 ? waitingCount : null,
-                onNextUp: waitingCount == 0 ? () => _callNextPlayer(id) : null,
+                onNextUp: id.isNotEmpty ? () => _callNextPlayer(id) : null,
                 onJoinQueue: id.isNotEmpty ? () => _joinQueue(id) : null,
               ),
             );
