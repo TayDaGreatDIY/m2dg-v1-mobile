@@ -89,8 +89,8 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
         setState(() => _selectedImage = File(pickedFile.path));
       }
     } catch (e) {
-      _toast('Failed to pick image: $e');
       print('Image picker error: $e');
+      _toast('Image upload not available on web');
     }
   }
 
@@ -160,7 +160,7 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
           'display_name': displayName.isEmpty ? username : displayName,
           'preferred_position': _selectedPosition,
           'skill_level': _selectedSkillLevel ?? 'Beginner',
-          'bio': _bioCtrl.text.trim(),
+          'bio': _bioCtrl.text.trim().isEmpty ? null : _bioCtrl.text.trim(),
           'avatar_url': avatarUrl,
           'favorite_court_id': _selectedHomeCourt,
           'orientation_completed': false,

@@ -91,6 +91,8 @@ CREATE TABLE IF NOT EXISTS profiles (
   bio TEXT,
   skill_level TEXT, -- beginner, intermediate, advanced, pro
   preferred_position TEXT,
+  favorite_court_id UUID REFERENCES courts(id) ON DELETE SET NULL,
+  orientation_completed BOOLEAN DEFAULT false,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
