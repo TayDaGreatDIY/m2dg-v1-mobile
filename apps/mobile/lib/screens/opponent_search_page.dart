@@ -65,7 +65,7 @@ class _OpponentSearchPageState extends State<OpponentSearchPage> {
       final response = await supabase
           .from('profiles')
           .select()
-          .neq('id', currentUserId)
+          .neq('user_id', currentUserId)
           .order('username');
 
       return List<Map<String, dynamic>>.from(response as List);

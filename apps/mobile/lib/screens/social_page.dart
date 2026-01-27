@@ -515,7 +515,7 @@ class UserSearchDelegate extends SearchDelegate<String?> {
               title: Text(displayName),
               subtitle: Text('@$username · $skillLevel'),
               trailing: const Icon(Icons.person_add_outlined),
-              onTap: () => close(context, user['id'] as String),
+              onTap: () => close(context, user['user_id'] as String),
             );
           },
         );
@@ -533,7 +533,7 @@ class UserSearchDelegate extends SearchDelegate<String?> {
       final results = await supabase
           .from('profiles')
           .select()
-          .neq('id', userId) // Exclude current user
+          .neq('user_id', userId) // Exclude current user
           .ilike('username', '%$query%')
           .limit(20);
 
