@@ -281,18 +281,22 @@ class _CourtDetailsPageState extends State<CourtDetailsPage> {
     setState(() => _joiningQueue = true);
 
     try {
-      await CourtQueueService.leaveQueue(_userQueueEntry!.id);
+      final queueIdToRemove = _userQueueEntry!.id;
+      
+      await CourtQueueService.leaveQueue(queueIdToRemove);
 
       if (!mounted) return;
 
+      // Immediately remove from local list to update UI instantly
       setState(() {
         _userQueueEntry = null;
+        _queueList = _queueList.where((q) => q.id != queueIdToRemove).toList();
         _joiningQueue = false;
       });
 
       _toast('Left queue');
       
-      // Reload the full queue
+      // Reload the full queue to sync with DB (subscription will also trigger this)
       await _loadQueue();
     } catch (e) {
       if (!mounted) return;
@@ -581,12 +585,22 @@ class _CourtDetailsPageState extends State<CourtDetailsPage> {
         ),
         const SizedBox(height: 8),
         
-        // Queue stats
+        // Queue stats - show count based on actual queue list
         if (_queueList.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: Text(
               '${_queueList.length} player${_queueList.length == 1 ? '' : 's'} waiting',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.secondary,
+              ),
+            ),
+          )
+        else if (!_loadingQueue)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Text(
+              '0 players waiting',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: Theme.of(context).colorScheme.secondary,
               ),
