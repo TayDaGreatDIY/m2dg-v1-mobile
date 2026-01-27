@@ -45,7 +45,7 @@ class _MessagesPageState extends State<MessagesPage> {
       final recipientData = await supabase
           .from('profiles')
           .select()
-          .eq('id', widget.recipientId)
+          .eq('user_id', widget.recipientId)
           .single();
 
       // Load messages
@@ -55,8 +55,8 @@ class _MessagesPageState extends State<MessagesPage> {
       final messagesData = await supabase
           .from('messages')
           .select()
-          .or('sender_id.eq.$userId,receiver_id.eq.$userId')
-          .or('sender_id.eq.${widget.recipientId},receiver_id.eq.${widget.recipientId}')
+          .or('sender_id.eq.$userId,recipient_id.eq.$userId')
+          .or('sender_id.eq.${widget.recipientId},recipient_id.eq.${widget.recipientId}')
           .order('created_at', ascending: true);
 
       if (mounted) {
@@ -141,8 +141,8 @@ class _MessagesPageState extends State<MessagesPage> {
 
       await supabase.from('messages').insert({
         'sender_id': userId,
-        'receiver_id': widget.recipientId,
-        'content': text,
+        'recipient_id': widget.recipientId,
+        'message': text,
       });
 
       _messageController.clear();
@@ -223,7 +223,7 @@ class _MessagesPageState extends State<MessagesPage> {
                     itemBuilder: (context, index) {
                       final message = _messages[index];
                       final senderId = message['sender_id'] as String;
-                      final content = message['content'] as String;
+                      final content = message['message'] as String;
                       final createdAt = DateTime.parse(message['created_at'] as String);
                       final isMe = senderId == userId;
 
