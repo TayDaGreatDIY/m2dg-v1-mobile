@@ -105,9 +105,25 @@ class ChallengeService {
     double? wagerAmount,
   }) async {
     try {
+      // Validate opponent exists
+      if (opponentId.isEmpty) {
+        throw Exception('Opponent ID cannot be empty');
+      }
+
       // Check if creator is rookie
       final userLevel = await fetchUserLevel(creatorId);
       final isPending = userLevel.isRookie;
+
+      // Verify opponent exists in profiles
+      final opponentCheck = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('user_id', opponentId)
+          .maybeSingle();
+
+      if (opponentCheck == null) {
+        throw Exception('Selected opponent not found. They may have deleted their account.');
+      }
 
       final challenge = {
         'creator_id': creatorId,

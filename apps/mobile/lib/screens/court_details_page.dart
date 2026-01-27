@@ -562,20 +562,8 @@ class _CourtDetailsPageState extends State<CourtDetailsPage> {
       final user = supabase.auth.currentUser;
       if (user == null) throw Exception('Not authenticated');
 
-      // Step 1: Immediately cancel the cooldown ticker
-      _tick?.cancel();
-      _tick = null;
-
-      // Step 2: Clear the cooldown state from UI immediately
-      setState(() {
-        _lastCheckinUtc = null;
-        _cooldownRemaining = Duration.zero;
-      });
-
-      // Step 3: Delete the check-in from database
-      await _checkins.leaveGame(widget.courtId);
-
-      // Step 4: DELETE from court_queues (remove player from queue)
+      // DELETE from court_queues (remove player from queue only)
+      // NOTE: Do NOT clear cooldown - it persists globally for anti-spam
       await supabase
           .from('court_queues')
           .delete()
@@ -584,7 +572,7 @@ class _CourtDetailsPageState extends State<CourtDetailsPage> {
 
       _toast('You have left the court ✅');
 
-      // Step 5: Update UI state
+      // Update UI state - just clear queue, keep cooldown
       if (mounted) {
         setState(() {
           _inQueueOrGame = false;

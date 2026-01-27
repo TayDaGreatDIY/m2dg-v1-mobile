@@ -190,7 +190,7 @@ class _OpponentSearchPageState extends State<OpponentSearchPage> {
                       itemCount: filtered.length,
                       itemBuilder: (context, index) {
                         final player = filtered[index];
-                        final playerId = player['id'] as String;
+                        final playerId = player['user_id'] as String; // Use user_id, not id
                         final username = player['username'] as String? ?? 'User';
                         final displayName = player['display_name'] as String? ?? username;
                         final firstLetter = username.isNotEmpty ? username[0].toUpperCase() : 'U';
