@@ -136,17 +136,11 @@ class _SocialPageState extends State<SocialPage> with SingleTickerProviderStateM
           .update({'status': 'accepted', 'updated_at': DateTime.now().toIso8601String()})
           .eq('id', friendshipId);
 
-      // Create reciprocal friendship
-      final userId = supabase.auth.currentUser?.id;
-      if (userId != null) {
-        await supabase.from('friendships').insert({
-          'user_id': userId,
-          'friend_id': requesterUserId,
-          'status': 'accepted',
-        });
-      }
-
+      // Note: No reciprocal friendship needed - queries handle both directions
+      // Refresh data after accepting
+      await Future.delayed(const Duration(milliseconds: 500));
       _loadData();
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Friend request accepted')),
