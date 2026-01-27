@@ -95,6 +95,9 @@ class GameSessionService {
 
       // Update player stats
       await _updatePlayerStats(gameId, winnerTeam);
+      
+      // Mark associated challenge as completed
+      await _completeChallenge(gameId);
 
       return GameSession.fromJson(response);
     } catch (e) {
@@ -200,6 +203,96 @@ class GameSessionService {
       }
     } catch (e) {
       print('Error updating player stats: $e');
+    }
+  }
+
+  // Start a game from a challenge (new method for challenge completion flow)
+  static Future<GameSession> startGameFromChallenge({
+    required String challengeId,
+    required String courtId,
+    required String creatorId,
+    required String opponentId,
+    required String challengeType,
+  }) async {
+    try {
+      // Create game session linked to challenge
+      final sessionResponse = await supabase
+          .from('game_sessions')
+          .insert({
+            'court_id': courtId,
+            'challenge_type': challengeType,
+            'status': 'active',
+            'challenge_id': challengeId,
+            'started_at': DateTime.now().toIso8601String(),
+          })
+          .select()
+          .single();
+
+      final session = GameSession.fromJson(sessionResponse);
+
+      // Add creator as team A
+      await supabase.from('game_session_players').insert({
+        'game_session_id': session.id,
+        'user_id': creatorId,
+        'team': 'team_a',
+        'position': 1,
+      });
+
+      // Add opponent as team B
+      await supabase.from('game_session_players').insert({
+        'game_session_id': session.id,
+        'user_id': opponentId,
+        'team': 'team_b',
+        'position': 1,
+      });
+
+      // Update challenge status to in_progress
+      await supabase
+          .from('challenges')
+          .update({'status': 'in_progress'})
+          .eq('id', challengeId);
+
+      return session;
+    } catch (e) {
+      print('❌ Error starting game from challenge: $e');
+      rethrow;
+    }
+  }
+
+  // Fetch game with all related data (players and profiles)
+  static Future<GameSession?> fetchGameWithPlayers(String gameId) async {
+    try {
+      final response = await supabase
+          .from('game_sessions')
+          .select()
+          .eq('id', gameId)
+          .single();
+
+      return GameSession.fromJson(response);
+    } catch (e) {
+      print('❌ Error fetching game: $e');
+      return null;
+    }
+  }
+
+  // Mark challenge as completed when game ends
+  static Future<void> _completeChallenge(String gameId) async {
+    try {
+      // Find and update associated challenge
+      final game = await supabase
+          .from('game_sessions')
+          .select('challenge_id')
+          .eq('id', gameId)
+          .maybeSingle();
+
+      if (game != null && game['challenge_id'] != null) {
+        await supabase
+            .from('challenges')
+            .update({'status': 'completed'})
+            .eq('id', game['challenge_id']);
+      }
+    } catch (e) {
+      print('⚠️  Error completing challenge: $e');
     }
   }
 }
