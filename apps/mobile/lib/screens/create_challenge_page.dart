@@ -81,6 +81,7 @@ class _CreateChallengePageState extends State<CreateChallengePage> {
   String? _selectedCourtId;
   String? _selectedCourtName;
   String? _selectedOpponentId;
+  String? _selectedOpponentName; // NEW: Store opponent name
   bool _hasWager = false;
   double? _wagerAmount;
   bool _isRookie = true;
@@ -322,9 +323,13 @@ class _CreateChallengePageState extends State<CreateChallengePage> {
               InkWell(
                 onTap: _selectedCourtId == null
                     ? null
-                    : () => context.push('/opponent-search?courtId=$_selectedCourtId').then((opponentId) {
-                          if (opponentId != null) {
-                            setState(() => _selectedOpponentId = opponentId as String);
+                    : () => context.push('/opponent-search?courtId=$_selectedCourtId').then((opponentData) {
+                          if (opponentData != null) {
+                            final data = opponentData as Map<String, dynamic>;
+                            setState(() {
+                              _selectedOpponentId = data['id'] as String;
+                              _selectedOpponentName = data['name'] as String;
+                            });
                           }
                         }),
                 child: Container(
@@ -351,9 +356,9 @@ class _CreateChallengePageState extends State<CreateChallengePage> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          _selectedOpponentId ?? 'Tap to select opponent',
+                          _selectedOpponentName ?? 'Tap to select opponent',
                           style: tt.bodyMedium?.copyWith(
-                            color: _selectedOpponentId != null
+                            color: _selectedOpponentName != null
                                 ? cs.onSurface
                                 : _selectedCourtId == null
                                     ? Colors.grey[500]

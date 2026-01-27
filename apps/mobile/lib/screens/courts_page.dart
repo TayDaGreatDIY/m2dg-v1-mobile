@@ -118,6 +118,24 @@ class _CourtsPageState extends State<CourtsPage> {
           .subscribe();
       
       _queueChannels['all'] = channel;
+
+      // Also subscribe to checkins changes to update cooldown display
+      final checkinsChannel = supabase
+          .channel('courts_checkins_updates')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'checkins',
+            callback: (payload) {
+              // When checkins change, reload to update cooldown display
+              if (mounted) {
+                _loadLastCheckinsForVisibleCourts();
+              }
+            },
+          )
+          .subscribe();
+
+      _queueChannels['checkins'] = checkinsChannel;
     } catch (e) {
       print('Error setting up queue subscriptions: $e');
     }

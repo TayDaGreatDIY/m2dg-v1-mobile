@@ -253,7 +253,10 @@ class _OpponentSearchPageState extends State<OpponentSearchPage> {
                                 if (isFriend)
                                   ElevatedButton(
                                     onPressed: () {
-                                      context.pop(playerId);
+                                      context.pop({
+                                        'id': playerId,
+                                        'name': displayName,
+                                      });
                                     },
                                     child: const Text('Select'),
                                   )
@@ -268,7 +271,10 @@ class _OpponentSearchPageState extends State<OpponentSearchPage> {
                                       const SizedBox(height: 8),
                                       ElevatedButton(
                                         onPressed: () {
-                                          context.pop(playerId);
+                                          context.pop({
+                                            'id': playerId,
+                                            'name': displayName,
+                                          });
                                         },
                                         style: ElevatedButton.styleFrom(
                                           backgroundColor: cs.secondaryContainer,
