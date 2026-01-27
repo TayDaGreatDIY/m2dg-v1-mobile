@@ -219,6 +219,12 @@ class _CourtDetailsPageState extends State<CourtDetailsPage> {
     // tick each second until zero
     if (remaining > Duration.zero) {
       _tick = Timer.periodic(const Duration(seconds: 1), (t) {
+        // Safety check: if user left court, stop the timer
+        if (_lastCheckinUtc == null) {
+          t.cancel();
+          return;
+        }
+        
         final r = _checkins.computeCooldownRemaining(last);
         if (!mounted) {
           t.cancel();
@@ -336,23 +342,25 @@ class _CourtDetailsPageState extends State<CourtDetailsPage> {
     setState(() => _leavingGame = true);
 
     try {
-      // Delete the check-in first
-      await _checkins.leaveGame(widget.courtId);
-
-      // Cancel the cooldown ticker immediately
+      // Step 1: Cancel the cooldown ticker immediately
       _tick?.cancel();
       _tick = null;
 
-      // Clear state immediately
+      // Step 2: Clear state immediately before database operations
       setState(() {
         _lastCheckinUtc = null;
         _cooldownRemaining = Duration.zero;
       });
 
+      // Step 3: Delete the check-in from database
+      await _checkins.leaveGame(widget.courtId);
+
       _toast('You have left the court ✅');
 
-      // Refresh activity - reload from database to ensure we get fresh data
-      // This clears any lingering cooldown display after server deletes the check-in
+      // Step 4: Add a small delay to ensure database has processed the delete
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      // Step 5: Refresh activity from database (should find no check-in now)
       if (mounted) {
         await _loadActivity();
       }
