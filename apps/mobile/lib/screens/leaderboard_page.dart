@@ -187,7 +187,7 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
   }
 
   void _goToPlayerProfile(String userId) {
-    context.go('/player/$userId');
+    context.push('/player/$userId');
   }
 
   @override

@@ -263,7 +263,7 @@ class _PlayerProfilePageState extends State<PlayerProfilePage> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  // Follow/Friend Button (if not current user)
+                  // Friend Button (if not current user)
                   if (supabase.auth.currentUser?.id != widget.userId)
                     SizedBox(
                       width: double.infinity,
@@ -275,7 +275,7 @@ class _PlayerProfilePageState extends State<PlayerProfilePage> {
                             )
                           : FilledButton.icon(
                               icon: const Icon(Icons.person_add),
-                              label: const Text('Follow'),
+                              label: const Text('Add Friend'),
                               onPressed: _checkingFriendship ? null : _addFriend,
                             ),
                     ),
