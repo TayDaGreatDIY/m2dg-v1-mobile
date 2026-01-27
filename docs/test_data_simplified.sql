@@ -20,11 +20,11 @@ ON CONFLICT (user_id) DO UPDATE SET total_wins = 28, total_losses = 19, total_ga
 
 -- PLAYER 3
 INSERT INTO profiles (user_id, username, display_name, skill_level, bio)
-VALUES ('1574aef6-25c5-4075-b773-e5f8aebedd7a'::uuid, 'quickhands', 'Quick Hands', 'beginner', 'Speed and agility')
+VALUES ('1574aaf6-25c5-4075-b773-e5f8aebedd7a'::uuid, 'quickhands', 'Quick Hands', 'beginner', 'Speed and agility')
 ON CONFLICT (user_id) DO UPDATE SET username = 'quickhands', display_name = 'Quick Hands', skill_level = 'beginner';
 
 INSERT INTO player_stats (user_id, total_wins, total_losses, total_games, total_points_scored, total_points_against)
-VALUES ('1574aef6-25c5-4075-b773-e5f8aebedd7a'::uuid, 12, 8, 20, 450, 380)
+VALUES ('1574aaf6-25c5-4075-b773-e5f8aebedd7a'::uuid, 12, 8, 20, 450, 380)
 ON CONFLICT (user_id) DO UPDATE SET total_wins = 12, total_losses = 8, total_games = 20, total_points_scored = 450, total_points_against = 380;
 
 -- Verify
