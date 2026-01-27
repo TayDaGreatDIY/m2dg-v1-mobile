@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mobile/models/notification.dart';
 import 'package:mobile/services/notification_service.dart';
 
@@ -193,14 +194,31 @@ class _NotificationsPageState extends State<NotificationsPage> {
   void _handleNotificationTap(AppNotification notification) {
     // Navigate based on notification type
     switch (notification.type) {
-      case 'queue_update':
-        // Navigate to court details
-        break;
-      case 'game_invite':
-        // Navigate to game session
+      case 'message':
+        // Navigate to messages page with sender ID
+        if (notification.data != null && notification.data!.containsKey('senderId')) {
+          final senderId = notification.data!['senderId'] as String;
+          context.push('/messages/$senderId');
+        }
         break;
       case 'friend_request':
-        // Navigate to profile
+        // Navigate to social/friends page
+        context.push('/social');
+        break;
+      case 'challenge':
+        // Navigate to challenges page
+        context.push('/challenges');
+        break;
+      case 'game_result':
+        // Navigate to leaderboard
+        context.push('/leaderboard');
+        break;
+      case 'queue_update':
+        // Navigate to courts list
+        context.push('/');
+        break;
+      default:
+        // Default: stay on notifications page
         break;
     }
   }

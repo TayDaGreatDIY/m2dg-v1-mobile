@@ -96,7 +96,7 @@ class NotificationService {
           .from('notifications')
           .select()
           .eq('user_id', userId)
-          .is_('read_at', null)
+          .filter('read_at', 'is', null)
           .count(CountOption.exact);
 
       return response.count;
