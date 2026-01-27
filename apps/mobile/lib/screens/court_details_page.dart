@@ -342,11 +342,11 @@ class _CourtDetailsPageState extends State<CourtDetailsPage> {
     setState(() => _leavingGame = true);
 
     try {
-      // Step 1: Cancel the cooldown ticker immediately
+      // Step 1: Immediately cancel the cooldown ticker
       _tick?.cancel();
       _tick = null;
 
-      // Step 2: Clear state immediately before database operations
+      // Step 2: Clear the cooldown state from UI immediately
       setState(() {
         _lastCheckinUtc = null;
         _cooldownRemaining = Duration.zero;
@@ -357,12 +357,29 @@ class _CourtDetailsPageState extends State<CourtDetailsPage> {
 
       _toast('You have left the court ✅');
 
-      // Step 4: Add a small delay to ensure database has processed the delete
-      await Future.delayed(const Duration(milliseconds: 300));
+      // Step 4: Refresh just the queue/game status (NOT the cooldown)
+      // This verifies you're no longer in a game, but doesn't reload check-ins
+      final user = supabase.auth.currentUser;
+      if (user != null) {
+        final queueRows = await supabase
+            .from('court_queues')
+            .select('id, status')
+            .eq('court_id', widget.courtId)
+            .eq('user_id', user.id)
+            .order('created_at', ascending: false)
+            .limit(1);
 
-      // Step 5: Refresh activity from database (should find no check-in now)
-      if (mounted) {
-        await _loadActivity();
+        bool inQueueOrGame = false;
+        if (queueRows.isNotEmpty) {
+          final status = (queueRows.first as Map)['status'] as String?;
+          if (status == 'waiting' || status == 'called_next' || status == 'checked_in') {
+            inQueueOrGame = true;
+          }
+        }
+
+        if (mounted) {
+          setState(() => _inQueueOrGame = inQueueOrGame);
+        }
       }
     } catch (e) {
       _toast('Failed to leave court: $e');
