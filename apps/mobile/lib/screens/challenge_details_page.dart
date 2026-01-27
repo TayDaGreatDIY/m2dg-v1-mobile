@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:mobile/models/challenge.dart';
 import 'package:mobile/services/challenge_service.dart';
 import 'package:mobile/services/developer_mode_service.dart';
+import 'package:mobile/services/game_session_service.dart';
 
 final supabase = Supabase.instance.client;
 
@@ -144,6 +145,44 @@ class _ChallengeDetailsPageState extends State<ChallengeDetailsPage> {
       );
     } finally {
       if (mounted) setState(() => _isProcessing = false);
+    }
+  }
+
+  Future<void> _startGame(Challenge challenge) async {
+    setState(() => _isProcessing = true);
+    try {
+      final userId = supabase.auth.currentUser?.id;
+      if (userId == null) throw Exception('Not authenticated');
+
+      // Determine creator and opponent
+      final isCreator = challenge.creatorId == userId;
+      final creatorId = challenge.creatorId;
+      final opponentId = challenge.opponentId!;
+
+      // Import GameSessionService
+      final game = await GameSessionService.startGameFromChallenge(
+        challengeId: challenge.id,
+        courtId: challenge.courtId,
+        creatorId: creatorId,
+        opponentId: opponentId,
+        challengeType: challenge.challengeType,
+      );
+
+      if (!mounted) return;
+      
+      // Navigate to active game page
+      context.go('/active-game/${game.id}');
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('✅ Game started!'), duration: Duration(seconds: 2)),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('❌ Error starting game: $e')),
+        );
+        setState(() => _isProcessing = false);
+      }
     }
   }
 
@@ -425,11 +464,19 @@ class _ChallengeDetailsPageState extends State<ChallengeDetailsPage> {
                         ),
                       ],
                     ),
-                  ] else if (isAccepted && _agreeToScoring) ...[
-                    FilledButton.tonal(
-                      onPressed: () => context.go('/'),
-                      child: const Text('View Courts'),
-                    ),
+                  ] else if (isAccepted) ...[
+                    if (isCreator)
+                      FilledButton.icon(
+                        onPressed: _isProcessing ? null : () => _startGame(challenge),
+                        icon: _isProcessing ? const SizedBox(
+                          height: 16,
+                          width: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.white)),
+                        ) : const Icon(Icons.sports_basketball),
+                        label: const Text('Start Game'),
+                      )
+                    else
+                      Text('Waiting for creator to start game...', style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant)),
                   ],
                 ],
               ),
