@@ -5,7 +5,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../models/court_queue.dart';
 import '../services/checkin_service.dart';
+import '../services/court_queue_service.dart';
 
 class CourtDetailsPage extends StatefulWidget {
   final String courtId;
@@ -55,6 +57,12 @@ class _CourtDetailsPageState extends State<CourtDetailsPage> {
   // Track if user is in queue/game
   bool _inQueueOrGame = false;
 
+  // Queue management
+  List<CourtQueue> _queueList = const [];
+  CourtQueue? _userQueueEntry;
+  bool _joiningQueue = false;
+  bool _loadingQueue = false;
+
   @override
   void initState() {
     super.initState();
@@ -66,6 +74,7 @@ class _CourtDetailsPageState extends State<CourtDetailsPage> {
 
     _loadCourtIfNeeded();
     _loadActivity();
+    _loadQueue();
   }
 
   @override
@@ -199,6 +208,96 @@ class _CourtDetailsPageState extends State<CourtDetailsPage> {
       setState(() => _loading = false);
       _toast('Failed to load court activity: $e');
     }
+  }
+
+  // ----------------------------
+  // Queue loading and refresh
+  // ----------------------------
+
+  Future<void> _loadQueue() async {
+    if (_loadingQueue) return;
+
+    setState(() => _loadingQueue = true);
+
+    try {
+      // Get the full queue for this court
+      final queue = await CourtQueueService.getCourtQueue(widget.courtId);
+
+      // Check if current user is in queue
+      final user = supabase.auth.currentUser;
+      CourtQueue? userEntry;
+      if (user != null) {
+        userEntry = queue.where((q) => q.userId == user.id).firstOrNull;
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        _queueList = queue;
+        _userQueueEntry = userEntry;
+        _loadingQueue = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loadingQueue = false);
+      print('Error loading queue: $e');
+    }
+  }
+
+  Future<void> _joinQueue() async {
+    if (_joiningQueue) return;
+
+    setState(() => _joiningQueue = true);
+
+    try {
+      final queueEntry = await CourtQueueService.joinQueue(widget.courtId);
+      
+      if (!mounted) return;
+
+      setState(() {
+        _userQueueEntry = queueEntry;
+        _joiningQueue = false;
+      });
+
+      _toast('Joined queue at position ${queueEntry.positionInQueue}');
+      
+      // Reload the full queue
+      await _loadQueue();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _joiningQueue = false);
+      _toast('Failed to join queue: $e');
+    }
+  }
+
+  Future<void> _leaveQueue() async {
+    if (_joiningQueue || _userQueueEntry == null) return;
+
+    setState(() => _joiningQueue = true);
+
+    try {
+      await CourtQueueService.leaveQueue(_userQueueEntry!.id);
+
+      if (!mounted) return;
+
+      setState(() {
+        _userQueueEntry = null;
+        _joiningQueue = false;
+      });
+
+      _toast('Left queue');
+      
+      // Reload the full queue
+      await _loadQueue();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _joiningQueue = false);
+      _toast('Failed to leave queue: $e');
+    }
+  }
+
+  Future<void> _refreshQueue() async {
+    await _loadQueue();
   }
 
   void _recomputeCooldownAndTicker() {
@@ -425,6 +524,184 @@ class _CourtDetailsPageState extends State<CourtDetailsPage> {
     );
   }
 
+  // Queue display section
+  Widget _buildQueueSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 20),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Court Queue',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            if (!_loadingQueue)
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                onPressed: _refreshQueue,
+                tooltip: 'Refresh queue',
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        
+        // Queue stats
+        if (_queueList.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Text(
+              '${_queueList.length} player${_queueList.length == 1 ? '' : 's'} waiting',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.secondary,
+              ),
+            ),
+          ),
+
+        // Join/Leave buttons
+        if (_userQueueEntry == null)
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: _joiningQueue ? null : _joinQueue,
+              child: _joiningQueue
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Join Queue'),
+            ),
+          )
+        else
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Your Position: #${_userQueueEntry!.positionInQueue}',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Status: ${_userQueueEntry!.status}',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: _joiningQueue ? null : _leaveQueue,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.errorContainer,
+                    foregroundColor: Theme.of(context).colorScheme.error,
+                  ),
+                  child: _joiningQueue
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Leave Queue'),
+                ),
+              ),
+            ],
+          ),
+
+        const SizedBox(height: 12),
+
+        // Queue list
+        if (_loadingQueue)
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: CircularProgressIndicator(),
+          )
+        else if (_queueList.isEmpty)
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Center(
+              child: Text(
+                'Queue is empty',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.outline,
+                ),
+              ),
+            ),
+          )
+        else
+          ..._queueList.map((queue) {
+            final isUser = _userQueueEntry?.id == queue.id;
+            return ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isUser
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.surfaceContainerHighest,
+                ),
+                child: Center(
+                  child: Text(
+                    '${queue.positionInQueue}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: isUser
+                          ? Theme.of(context).colorScheme.onPrimary
+                          : Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ),
+              title: Text(
+                isUser ? 'You' : 'Player ${queue.userId.substring(0, 8)}',
+                style: isUser
+                    ? Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        )
+                    : Theme.of(context).textTheme.bodyMedium,
+              ),
+              subtitle: Text(
+                '${queue.teamSize} player${queue.teamSize == 1 ? '' : 's'}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              trailing: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  queue.status,
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
+              ),
+            );
+          }),
+      ],
+    );
+  }
+
   bool _isActive(Map<String, dynamic> c) {
     final v = c['is_active'];
     if (v is bool) return v;
@@ -596,6 +873,8 @@ class _CourtDetailsPageState extends State<CourtDetailsPage> {
                     },
                   ),
                 ],
+                const SizedBox(height: 18),
+                _buildQueueSection(context),
                 const SizedBox(height: 18),
                 Text(
                   'Your check-ins here: $_myTotalHere',
