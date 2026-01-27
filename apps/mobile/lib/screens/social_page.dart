@@ -129,7 +129,7 @@ class _SocialPageState extends State<SocialPage> with SingleTickerProviderStateM
     }
   }
 
-  Future<void> _acceptFriendRequest(String friendshipId, String requesterId) async {
+  Future<void> _acceptFriendRequest(String friendshipId, String requesterUserId) async {
     try {
       await supabase
           .from('friendships')
@@ -141,7 +141,7 @@ class _SocialPageState extends State<SocialPage> with SingleTickerProviderStateM
       if (userId != null) {
         await supabase.from('friendships').insert({
           'user_id': userId,
-          'friend_id': requesterId,
+          'friend_id': requesterUserId,
           'status': 'accepted',
         });
       }
@@ -396,7 +396,7 @@ class _SocialPageState extends State<SocialPage> with SingleTickerProviderStateM
                                     icon: const Icon(Icons.check, color: Colors.green),
                                     onPressed: () => _acceptFriendRequest(
                                       request['id'] as String,
-                                      requester['id'] as String,
+                                      requester['user_id'] as String,
                                     ),
                                   ),
                                   IconButton(
