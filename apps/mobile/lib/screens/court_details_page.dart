@@ -63,6 +63,9 @@ class _CourtDetailsPageState extends State<CourtDetailsPage> {
   bool _joiningQueue = false;
   bool _loadingQueue = false;
 
+  // Real-time subscriptions
+  late final RealtimeChannel _queueChannel;
+
   @override
   void initState() {
     super.initState();
@@ -75,11 +78,13 @@ class _CourtDetailsPageState extends State<CourtDetailsPage> {
     _loadCourtIfNeeded();
     _loadActivity();
     _loadQueue();
+    _setupQueueSubscription();
   }
 
   @override
   void dispose() {
     _tick?.cancel();
+    supabase.removeChannel(_queueChannel);
     super.dispose();
   }
 
@@ -298,6 +303,35 @@ class _CourtDetailsPageState extends State<CourtDetailsPage> {
 
   Future<void> _refreshQueue() async {
     await _loadQueue();
+  }
+
+  // ----------------------------
+  // Real-time subscription setup
+  // ----------------------------
+
+  void _setupQueueSubscription() {
+    try {
+      // Subscribe to changes in the court_queues table for this court
+      _queueChannel = supabase
+          .channel('court_queue:${widget.courtId}')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'court_queues',
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'court_id',
+              value: widget.courtId,
+            ),
+            callback: (payload) {
+              // When queue changes, reload the queue data
+              _loadQueue();
+            },
+          )
+          .subscribe();
+    } catch (e) {
+      print('Error setting up queue subscription: $e');
+    }
   }
 
   void _recomputeCooldownAndTicker() {
