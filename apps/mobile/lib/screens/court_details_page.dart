@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../models/challenge.dart';
 import '../models/court_queue.dart';
 import '../services/checkin_service.dart';
 import '../services/court_queue_service.dart';
@@ -66,8 +67,13 @@ class _CourtDetailsPageState extends State<CourtDetailsPage> {
   bool _joiningQueue = false;
   bool _loadingQueue = false;
 
+  // Challenges management
+  List<Challenge> _activeChallenges = const [];
+  bool _loadingChallenges = false;
+
   // Real-time subscriptions
   late final RealtimeChannel _queueChannel;
+  late final RealtimeChannel _challengesChannel;
 
   @override
   void initState() {
@@ -83,6 +89,8 @@ class _CourtDetailsPageState extends State<CourtDetailsPage> {
     _loadActivity();
     _loadQueue();
     _setupQueueSubscription();
+    _loadChallenges();
+    _setupChallengesSubscription();
   }
 
   Future<void> _loadDeveloperSettings() async {
@@ -100,6 +108,7 @@ class _CourtDetailsPageState extends State<CourtDetailsPage> {
   void dispose() {
     _tick?.cancel();
     supabase.removeChannel(_queueChannel);
+    supabase.removeChannel(_challengesChannel);
     super.dispose();
   }
 
@@ -353,6 +362,61 @@ class _CourtDetailsPageState extends State<CourtDetailsPage> {
     }
   }
 
+  Future<void> _loadChallenges() async {
+    if (_loadingChallenges) return;
+
+    setState(() => _loadingChallenges = true);
+
+    try {
+      // Fetch all active challenges for this court
+      final allChallenges = await supabase
+          .from('challenges')
+          .select()
+          .eq('court_id', widget.courtId)
+          .inFilter('status', ['open', 'pending_approval', 'accepted', 'in_progress']);
+
+      final challenges = (allChallenges as List)
+          .map((json) => Challenge.fromJson(json as Map<String, dynamic>))
+          .toList();
+
+      if (!mounted) return;
+
+      setState(() {
+        _activeChallenges = challenges;
+        _loadingChallenges = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loadingChallenges = false);
+      print('Error loading challenges: $e');
+    }
+  }
+
+  void _setupChallengesSubscription() {
+    try {
+      _challengesChannel = supabase
+          .channel('court_challenges_${widget.courtId}')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'challenges',
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'court_id',
+              value: widget.courtId,
+            ),
+            callback: (payload) {
+              if (mounted) {
+                _loadChallenges();
+              }
+            },
+          )
+          .subscribe();
+    } catch (e) {
+      print('Error setting up challenges subscription: $e');
+    }
+  }
+
   void _recomputeCooldownAndTicker() {
     // Always cancel any existing ticker first
     _tick?.cancel();
@@ -575,6 +639,143 @@ class _CourtDetailsPageState extends State<CourtDetailsPage> {
         text,
         style: Theme.of(context).textTheme.labelMedium,
       ),
+    );
+  }
+
+  // Active challenges display section
+  Widget _buildChallengesSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 20),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Active Challenges',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            if (!_loadingChallenges)
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                onPressed: _loadChallenges,
+                tooltip: 'Refresh challenges',
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (_loadingChallenges)
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          )
+        else if (_activeChallenges.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Text(
+              'No active challenges on this court.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.outline,
+              ),
+            ),
+          )
+        else
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _activeChallenges.length,
+            itemBuilder: (context, index) {
+              final challenge = _activeChallenges[index];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Card(
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    challenge.challengeType.toUpperCase(),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleSmall
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Status: ${challenge.status}',
+                                    style: Theme.of(context).textTheme.bodySmall,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .secondaryContainer,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                challenge.status == 'open'
+                                    ? '🟢 Open'
+                                    : challenge.status == 'in_progress'
+                                        ? '🔴 Playing'
+                                        : '⏳ ${challenge.status}',
+                                style: Theme.of(context).textTheme.labelSmall,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        if (challenge.hasWager)
+                          Text(
+                            '💰 Wager: \$${challenge.wagerAmount?.toStringAsFixed(2) ?? '0.00'}',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(color: Theme.of(context).colorScheme.primary),
+                          ),
+                        if (challenge.status == 'open')
+                          Padding(
+                            padding: const EdgeInsets.only(top: 12),
+                            child: SizedBox(
+                              width: double.infinity,
+                              child: FilledButton.tonal(
+                                onPressed: () {
+                                  _toast('Join challenge feature coming soon!');
+                                },
+                                child: const Text('Join Challenge'),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+      ],
     );
   }
 
@@ -955,6 +1156,8 @@ class _CourtDetailsPageState extends State<CourtDetailsPage> {
                     },
                   ),
                 ],
+                const SizedBox(height: 18),
+                _buildChallengesSection(context),
                 const SizedBox(height: 18),
                 _buildQueueSection(context),
                 const SizedBox(height: 18),
