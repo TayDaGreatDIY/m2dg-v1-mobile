@@ -158,14 +158,6 @@ class _M2DGAppState extends State<M2DGApp> {
               },
             ),
             GoRoute(
-              path: '/active-game/:id',
-              name: 'activeGame',
-              builder: (context, state) {
-                final id = state.pathParameters['id']!;
-                return ActiveGamePage(courtId: '', gameId: id);
-              },
-            ),
-            GoRoute(
               path: '/game-waiting/:challengeId',
               name: 'gameWaiting',
               builder: (context, state) {
