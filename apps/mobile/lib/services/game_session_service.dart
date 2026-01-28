@@ -215,14 +215,13 @@ class GameSessionService {
     required String challengeType,
   }) async {
     try {
-      // Create game session linked to challenge
+      // Create game session linked to challenge (challenge_id tracked via challenge status)
       final sessionResponse = await supabase
           .from('game_sessions')
           .insert({
             'court_id': courtId,
             'challenge_type': challengeType,
             'status': 'active',
-            'challenge_id': challengeId,
             'started_at': DateTime.now().toIso8601String(),
           })
           .select()

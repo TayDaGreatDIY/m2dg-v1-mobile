@@ -289,6 +289,43 @@ class _ActiveGamePageState extends State<ActiveGamePage> {
                           ),
                           const SizedBox(height: 24),
 
+                          // Score Keeper Info
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: cs.tertiary.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: cs.tertiary),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.verified, color: cs.tertiary, size: 20),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Score Keeper Mode',
+                                        style: tt.labelSmall?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                          color: cs.tertiary,
+                                        ),
+                                      ),
+                                      Text(
+                                        'Only verified score keepers can update game scores.',
+                                        style: tt.labelSmall?.copyWith(
+                                          color: cs.onSurfaceVariant,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+
                           // Score Display
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
