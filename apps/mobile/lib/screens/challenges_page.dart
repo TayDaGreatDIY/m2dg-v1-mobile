@@ -52,6 +52,10 @@ class _ChallengesPageState extends State<ChallengesPage> {
       appBar: AppBar(
         title: const Text('Challenges'),
         centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.go('/create-challenge'),
@@ -172,102 +176,151 @@ class _ChallengesPageState extends State<ChallengesPage> {
     final isCreator = challenge.creatorId == userId;
     final statusColor = _getStatusColor(challenge.status, cs);
     final statusLabel = _getStatusLabel(challenge.status);
+    final canJoin = !isCreator && challenge.status == 'open' && challenge.opponentId == null;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
-        onTap: () => context.go('/challenge/${challenge.id}'),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header: Type + Status
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Chip(
-                    label: Text(challenge.challengeType.toUpperCase()),
-                    backgroundColor: cs.primaryContainer,
-                    labelStyle: tt.labelSmall?.copyWith(
-                      color: cs.onPrimaryContainer,
-                    ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header: Type + Status
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Chip(
+                  label: Text(challenge.challengeType.toUpperCase()),
+                  backgroundColor: cs.primaryContainer,
+                  labelStyle: tt.labelSmall?.copyWith(
+                    color: cs.onPrimaryContainer,
                   ),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: statusColor),
-                    ),
-                    child: Text(
-                      statusLabel,
-                      style: tt.labelSmall?.copyWith(color: statusColor),
-                    ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: statusColor),
                   ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              // Opponent info with name fetching
-              FutureBuilder<String>(
-                future: challenge.opponentId != null
-                    ? ChallengeService.fetchOpponentName(challenge.opponentId!)
-                    : Future.value('Open Challenge'),
-                builder: (context, snapshot) {
-                  final opponentName = snapshot.data ?? 'Loading...';
-                  
-                  return Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 20,
-                        backgroundColor: cs.tertiary,
-                        child: Text(
-                          opponentName.substring(0, 1).toUpperCase(),
-                          style: tt.bodySmall?.copyWith(
-                            color: cs.onTertiary,
-                            fontWeight: FontWeight.bold,
+                  child: Text(
+                    statusLabel,
+                    style: tt.labelSmall?.copyWith(color: statusColor),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // Opponent info with name fetching
+            FutureBuilder<String>(
+              future: challenge.opponentId != null
+                  ? ChallengeService.fetchOpponentName(challenge.opponentId!)
+                  : Future.value('Open Challenge'),
+              builder: (context, snapshot) {
+                final opponentName = snapshot.data ?? 'Loading...';
+                
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 20,
+                          backgroundColor: cs.tertiary,
+                          child: Text(
+                            opponentName.substring(0, 1).toUpperCase(),
+                            style: tt.bodySmall?.copyWith(
+                              color: cs.onTertiary,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              opponentName,
-                              style: tt.bodyMedium?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            if (challenge.hasWager)
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
                               Text(
-                                '\$${challenge.wagerAmount?.toStringAsFixed(2) ?? '0.00'} wager',
-                                style: tt.labelSmall?.copyWith(
-                                  color: cs.tertiary,
+                                opponentName,
+                                style: tt.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
-                          ],
-                        ),
-                      ),
-                      if (isCreator)
-                        Chip(
-                          label: const Text('You'),
-                          backgroundColor: cs.secondary.withValues(alpha: 0.3),
-                          labelStyle: tt.labelSmall?.copyWith(
-                            color: cs.onSecondary,
+                              if (challenge.hasWager)
+                                Text(
+                                  '\$${challenge.wagerAmount?.toStringAsFixed(2) ?? '0.00'} wager',
+                                  style: tt.labelSmall?.copyWith(
+                                    color: cs.tertiary,
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
-                    ],
-                  );
-                },
-              ),
-            ],
-          ),
+                        if (isCreator)
+                          Chip(
+                            label: const Text('You'),
+                            backgroundColor: cs.secondary.withValues(alpha: 0.3),
+                            labelStyle: tt.labelSmall?.copyWith(
+                              color: cs.onSecondary,
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    // Action buttons
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            onPressed: () => context.go('/challenge/${challenge.id}'),
+                            child: const Text('View Details'),
+                          ),
+                        ),
+                        if (canJoin) ...[
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () => _joinChallenge(challenge.id, userId, context),
+                              child: const Text('Join Challenge'),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
         ),
       ),
     );
+  }
+
+  Future<void> _joinChallenge(String challengeId, String? userId, BuildContext context) async {
+    if (userId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('User not authenticated')),
+      );
+      return;
+    }
+
+    try {
+      await ChallengeService.joinChallenge(challengeId, userId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('✅ Successfully joined challenge!')),
+        );
+        context.go('/challenge/$challengeId');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error joining challenge: $e')),
+        );
+      }
+    }
   }
 
   Color _getStatusColor(String status, ColorScheme cs) {

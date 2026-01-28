@@ -186,6 +186,34 @@ class _ChallengeDetailsPageState extends State<ChallengeDetailsPage> {
     }
   }
 
+  Future<void> _joinChallenge(Challenge challenge) async {
+    setState(() => _isProcessing = true);
+    try {
+      final userId = supabase.auth.currentUser?.id;
+      if (userId == null) throw Exception('Not authenticated');
+
+      await ChallengeService.joinChallenge(challenge.id, userId);
+
+      if (!mounted) return;
+      
+      setState(() {
+        _challengeFuture = ChallengeService.fetchChallenge(challenge.id);
+        _isProcessing = false;
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('✅ You joined the challenge!'), duration: Duration(seconds: 2)),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('❌ Error joining challenge: $e')),
+        );
+        setState(() => _isProcessing = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -457,7 +485,35 @@ class _ChallengeDetailsPageState extends State<ChallengeDetailsPage> {
                     ),
 
                   // Actions
-                  if (isOpen && !isCreator) ...[
+                  if (isOpen && !isCreator && challenge.opponentId == null) ...[
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: _isProcessing ? null : _declineChallenge,
+                            child: const Text('Decline'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilledButton.icon(
+                            onPressed: _isProcessing ? null : () => _joinChallenge(challenge),
+                            icon: _isProcessing
+                                ? const SizedBox(
+                                    height: 16,
+                                    width: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                    ),
+                                  )
+                                : const Icon(Icons.person_add),
+                            label: const Text('Join Challenge'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ] else if (isOpen && !isCreator) ...[
                     Row(
                       children: [
                         Expanded(

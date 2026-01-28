@@ -240,4 +240,40 @@ class ChallengeService {
       return 'Unknown Player';
     }
   }
+
+  /// Join a challenge as the opponent
+  static Future<Challenge> joinChallenge(String challengeId, String userId) async {
+    try {
+      // Update challenge with opponent_id and status to accepted
+      final response = await supabase
+          .from('challenges')
+          .update({
+            'opponent_id': userId,
+            'status': 'accepted',
+          })
+          .eq('id', challengeId)
+          .select()
+          .single();
+
+      print('✅ Joined challenge: $challengeId');
+      return Challenge.fromJson(response);
+    } catch (e) {
+      print('❌ Error joining challenge: $e');
+      throw Exception('Failed to join challenge: $e');
+    }
+  }
+
+  /// Mark challenge as completed
+  static Future<void> completeChallenge(String challengeId) async {
+    try {
+      await supabase
+          .from('challenges')
+          .update({'status': 'completed'})
+          .eq('id', challengeId);
+
+      print('✅ Challenge completed: $challengeId');
+    } catch (e) {
+      print('⚠️  Error completing challenge: $e');
+    }
+  }
 }

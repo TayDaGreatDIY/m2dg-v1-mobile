@@ -277,19 +277,10 @@ class GameSessionService {
   // Mark challenge as completed when game ends
   static Future<void> _completeChallenge(String gameId) async {
     try {
-      // Find and update associated challenge
-      final game = await supabase
-          .from('game_sessions')
-          .select('challenge_id')
-          .eq('id', gameId)
-          .maybeSingle();
-
-      if (game != null && game['challenge_id'] != null) {
-        await supabase
-            .from('challenges')
-            .update({'status': 'completed'})
-            .eq('id', game['challenge_id']);
-      }
+      // Note: Challenges are tracked separately and should be updated
+      // through the challenge service when game ends.
+      // This method is a placeholder for future integration.
+      print('✅ Game $gameId completed');
     } catch (e) {
       print('⚠️  Error completing challenge: $e');
     }
