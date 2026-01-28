@@ -437,6 +437,25 @@ class _ChallengeDetailsPageState extends State<ChallengeDetailsPage> {
                     const SizedBox(height: 24),
                   ],
 
+                  // Status display with debug info
+                  if (_isDevMode)
+                    Card(
+                      color: cs.surfaceContainerHighest,
+                      child: Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('🐛 DEBUG INFO:', style: tt.labelSmall?.copyWith(fontWeight: FontWeight.bold)),
+                            Text('Status: ${challenge.status}', style: tt.labelSmall),
+                            Text('Is Creator: $isCreator', style: tt.labelSmall),
+                            Text('Is Open: $isOpen', style: tt.labelSmall),
+                            Text('Is Accepted: $isAccepted', style: tt.labelSmall),
+                          ],
+                        ),
+                      ),
+                    ),
+
                   // Actions
                   if (isOpen && !isCreator) ...[
                     Row(
@@ -477,6 +496,17 @@ class _ChallengeDetailsPageState extends State<ChallengeDetailsPage> {
                       )
                     else
                       Text('Waiting for creator to start game...', style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant)),
+                  ] else if (isCreator && (isOpen || isAccepted)) ...[
+                    // For testing: allow creator to start game even if not fully accepted
+                    FilledButton.icon(
+                      onPressed: _isProcessing ? null : () => _startGame(challenge),
+                      icon: _isProcessing ? const SizedBox(
+                        height: 16,
+                        width: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.white)),
+                      ) : const Icon(Icons.sports_basketball),
+                      label: const Text('Start Game'),
+                    ),
                   ],
                 ],
               ),

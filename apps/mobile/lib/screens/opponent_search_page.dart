@@ -80,6 +80,21 @@ class _OpponentSearchPageState extends State<OpponentSearchPage> {
       final userId = supabase.auth.currentUser?.id;
       if (userId == null) return;
 
+      // Check if friendship already exists
+      final existing = await supabase
+          .from('friendships')
+          .select()
+          .or('user_id.eq.$userId,friend_id.eq.$userId')
+          .or('user_id.eq.$recipientId,friend_id.eq.$recipientId');
+
+      if (existing.isNotEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('⚠️ Friendship already exists or pending')),
+        );
+        return;
+      }
+
       await supabase.from('friendships').insert({
         'user_id': userId,
         'friend_id': recipientId,
@@ -88,11 +103,15 @@ class _OpponentSearchPageState extends State<OpponentSearchPage> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Friend request sent!')),
+        const SnackBar(content: Text('✅ Friend request sent!'), duration: Duration(seconds: 2)),
       );
       setState(() => _loadFriends());
     } catch (e) {
-      print('Error sending friend request: $e');
+      print('❌ Error sending friend request: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
     }
   }
 
