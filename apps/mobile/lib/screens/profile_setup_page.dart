@@ -159,26 +159,32 @@ class _RefereeProfileSetupState extends State<_RefereeProfileSetup> {
       }
 
       // Update profile
-      await supabase.from('profiles').upsert({
-        'user_id': userId,
-        'username': _usernameCtrl.text,
-        'display_name': _displayNameCtrl.text,
-        'avatar_url': avatarUrl,
-        'orientation_completed': true,
-        'user_role': 'referee',
-      });
+      await supabase.from('profiles').upsert(
+        {
+          'user_id': userId,
+          'username': _usernameCtrl.text,
+          'display_name': _displayNameCtrl.text,
+          'avatar_url': avatarUrl,
+          'orientation_completed': true,
+          'user_role': 'referee',
+        },
+        onConflict: 'user_id',
+      );
 
       // Create/update referee profile
-      await supabase.from('referee_profiles').upsert({
-        'user_id': userId,
-        'display_name': _displayNameCtrl.text,
-        'profile_picture_url': avatarUrl,
-        'years_experience': int.tryParse(_yearsExperienceCtrl.text) ?? 0,
-        'bio': _bioCtrl.text,
-        'games_refereed_total': 0,
-        'average_rating': 0.0,
-        'is_verified': false,
-      });
+      await supabase.from('referee_profiles').upsert(
+        {
+          'user_id': userId,
+          'display_name': _displayNameCtrl.text,
+          'profile_picture_url': avatarUrl,
+          'years_experience': int.tryParse(_yearsExperienceCtrl.text) ?? 0,
+          'bio': _bioCtrl.text,
+          'games_refereed_total': 0,
+          'average_rating': 0.0,
+          'is_verified': false,
+        },
+        onConflict: 'user_id',
+      );
 
       if (!mounted) return;
       context.go('/');
@@ -391,26 +397,32 @@ class _VerifiedScorerProfileSetupState
       }
 
       // Update profile
-      await supabase.from('profiles').upsert({
-        'user_id': userId,
-        'username': _usernameCtrl.text,
-        'display_name': _displayNameCtrl.text,
-        'avatar_url': avatarUrl,
-        'orientation_completed': true,
-        'user_role': 'verified_scorer',
-      });
+      await supabase.from('profiles').upsert(
+        {
+          'user_id': userId,
+          'username': _usernameCtrl.text,
+          'display_name': _displayNameCtrl.text,
+          'avatar_url': avatarUrl,
+          'orientation_completed': true,
+          'user_role': 'verified_scorer',
+        },
+        onConflict: 'user_id',
+      );
 
       // Create game keeper profile
-      await supabase.from('game_keeper_profiles').upsert({
-        'user_id': userId,
-        'display_name': _displayNameCtrl.text,
-        'profile_picture_url': avatarUrl,
-        'certification_date': DateTime.now().toIso8601String(),
-        'bio': _certificationCtrl.text,
-        'games_kept_total': 0,
-        'average_accuracy': double.tryParse(_accuracyGoalCtrl.text) ?? 95.0,
-        'is_verified': false,
-      });
+      await supabase.from('game_keeper_profiles').upsert(
+        {
+          'user_id': userId,
+          'display_name': _displayNameCtrl.text,
+          'profile_picture_url': avatarUrl,
+          'certification_date': DateTime.now().toIso8601String(),
+          'bio': _certificationCtrl.text,
+          'games_kept_total': 0,
+          'average_accuracy': double.tryParse(_accuracyGoalCtrl.text) ?? 95.0,
+          'is_verified': false,
+        },
+        onConflict: 'user_id',
+      );
 
       if (!mounted) return;
       context.go('/');
@@ -592,15 +604,18 @@ class _ParentProfileSetupState extends State<_ParentProfileSetup> {
         avatarUrl = supabase.storage.from('avatars').getPublicUrl(fileName);
       }
 
-      await supabase.from('profiles').upsert({
-        'user_id': userId,
-        'username': _usernameCtrl.text,
-        'display_name': _displayNameCtrl.text,
-        'avatar_url': avatarUrl,
-        'bio': _childrenNamesCtrl.text,
-        'orientation_completed': true,
-        'user_role': 'parent',
-      });
+      await supabase.from('profiles').upsert(
+        {
+          'user_id': userId,
+          'username': _usernameCtrl.text,
+          'display_name': _displayNameCtrl.text,
+          'avatar_url': avatarUrl,
+          'bio': _childrenNamesCtrl.text,
+          'orientation_completed': true,
+          'user_role': 'parent',
+        },
+        onConflict: 'user_id',
+      );
 
       if (!mounted) return;
       context.go('/');
@@ -787,16 +802,19 @@ class _AthleteProfileSetupState extends State<_AthleteProfileSetup> {
         avatarUrl = supabase.storage.from('avatars').getPublicUrl(fileName);
       }
 
-      await supabase.from('profiles').upsert({
-        'user_id': userId,
-        'username': _usernameCtrl.text,
-        'display_name': _displayNameCtrl.text,
-        'avatar_url': avatarUrl,
-        'preferred_position': _selectedPosition,
-        'skill_level': _selectedSkillLevel,
-        'orientation_completed': true,
-        'user_role': 'athlete',
-      });
+      await supabase.from('profiles').upsert(
+        {
+          'user_id': userId,
+          'username': _usernameCtrl.text,
+          'display_name': _displayNameCtrl.text,
+          'avatar_url': avatarUrl,
+          'preferred_position': _selectedPosition,
+          'skill_level': _selectedSkillLevel,
+          'orientation_completed': true,
+          'user_role': 'athlete',
+        },
+        onConflict: 'user_id',
+      );
 
       if (!mounted) return;
       context.go('/');
