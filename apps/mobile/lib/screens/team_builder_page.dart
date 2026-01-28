@@ -46,6 +46,42 @@ class _TeamBuilderPageState extends State<TeamBuilderPage> with TickerProviderSt
     setState(() => _allTeams = teams);
   }
 
+  Future<List<Map<String, dynamic>>> _fetchUserFriends() async {
+    try {
+      final userId = supabase.auth.currentUser?.id;
+      if (userId == null) return [];
+
+      // Fetch accepted friendships
+      final friendships = await supabase
+          .from('friendships')
+          .select('id, friend_id')
+          .eq('user_id', userId)
+          .eq('status', 'accepted');
+
+      if ((friendships as List).isEmpty) return [];
+
+      // Extract friend IDs
+      final friendIds = (friendships as List)
+          .cast<Map<String, dynamic>>()
+          .map((f) => f['friend_id'] as String?)
+          .whereType<String>()
+          .toList();
+
+      if (friendIds.isEmpty) return [];
+
+      // Fetch friend profiles
+      final profiles = await supabase
+          .from('profiles')
+          .select('user_id, username, display_name')
+          .inFilter('user_id', friendIds);
+
+      return (profiles as List).cast<Map<String, dynamic>>();
+    } catch (e) {
+      print('❌ Error fetching friends: $e');
+      return [];
+    }
+  }
+
   void _showCreateTeamDialog() {
     final teamNameController = TextEditingController();
     String selectedGameType = '5v5';
@@ -165,11 +201,16 @@ class _TeamBuilderPageState extends State<TeamBuilderPage> with TickerProviderSt
   }
 
   Future<List<String>> _showPlayerSelectionDialog(int requiredCount, List<String> currentPlayers) async {
-    // Get list of friends from the current user
-    // For now, we'll just return an empty list that the user can populate
-    // In a real app, this would show a searchable list of friends
-
     List<String> selected = [...currentPlayers];
+    List<Map<String, dynamic>> allFriends = [];
+    List<Map<String, dynamic>> filteredFriends = [];
+    bool isLoadingFriends = true;
+    String searchQuery = '';
+
+    // Fetch friends on dialog load
+    allFriends = await _fetchUserFriends();
+    filteredFriends = allFriends;
+    isLoadingFriends = false;
 
     return await showDialog(
       context: context,
@@ -181,15 +222,136 @@ class _TeamBuilderPageState extends State<TeamBuilderPage> with TickerProviderSt
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  'Selected: ${selected.length}/$requiredCount',
-                  style: Theme.of(context).textTheme.titleSmall,
+                // Header with count
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Selected: ${selected.length}/$requiredCount',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      if (selected.isNotEmpty)
+                        Text(
+                          '${requiredCount - selected.length} remaining',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 16),
-                const Placeholder(fallbackHeight: 200),
-                // TODO: Fetch and display list of friends here
-                // Use FriendshipService to get user's friends
-                // Show checkboxes for each friend
+
+                // Search field
+                TextField(
+                  decoration: InputDecoration(
+                    hintText: 'Search friends...',
+                    prefixIcon: const Icon(Icons.search),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onChanged: (query) {
+                    setDialogState(() {
+                      searchQuery = query.toLowerCase();
+                      filteredFriends = allFriends
+                          .where((friend) {
+                            final displayName = (friend['display_name'] as String?) ?? '';
+                            final username = (friend['username'] as String?) ?? '';
+                            return displayName.toLowerCase().contains(searchQuery) ||
+                                username.toLowerCase().contains(searchQuery);
+                          })
+                          .toList();
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                // Friends list
+                if (isLoadingFriends)
+                  const Center(child: CircularProgressIndicator())
+                else if (allFriends.isEmpty)
+                  Expanded(
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.people_outline, size: 48, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                          const SizedBox(height: 12),
+                          Text('No friends yet', style: Theme.of(context).textTheme.bodyMedium),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: filteredFriends.length,
+                      itemBuilder: (context, index) {
+                        final friend = filteredFriends[index];
+                        final userId = friend['user_id'] as String?;
+                        final displayName = friend['display_name'] ?? friend['username'] ?? 'Unknown';
+                        final isSelected = selected.contains(userId);
+                        final isDisabled = !isSelected && selected.length >= requiredCount;
+
+                        return ListTile(
+                          enabled: !isDisabled,
+                          leading: CircleAvatar(
+                            child: Text(
+                              displayName[0].toUpperCase(),
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          title: Text(displayName),
+                          trailing: Checkbox(
+                            value: isSelected,
+                            onChanged: isDisabled
+                                ? null
+                                : (bool? value) {
+                                    setDialogState(() {
+                                      if (value == true && userId != null) {
+                                        selected.add(userId);
+                                      } else if (value == false && userId != null) {
+                                        selected.removeWhere((id) => id == userId);
+                                      }
+                                    });
+                                  },
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+
+                // Selected players chips
+                if (selected.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  const Divider(),
+                  const SizedBox(height: 12),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('Selected:', style: Theme.of(context).textTheme.labelSmall),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: selected.map((playerId) {
+                      final friend = allFriends.firstWhere(
+                        (f) => f['user_id'] == playerId,
+                        orElse: () => {},
+                      );
+                      final displayName = (friend['display_name'] ?? friend['username'] ?? 'Player') as String;
+                      return Chip(
+                        label: Text(displayName, style: Theme.of(context).textTheme.bodySmall),
+                        onDeleted: () => setDialogState(
+                          () => selected.removeWhere((id) => id == playerId),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
               ],
             ),
           ),
@@ -202,7 +364,7 @@ class _TeamBuilderPageState extends State<TeamBuilderPage> with TickerProviderSt
               onPressed: selected.length == requiredCount
                   ? () => Navigator.pop(context, selected)
                   : null,
-              child: const Text('Done'),
+              child: Text('Done (${selected.length}/$requiredCount)'),
             ),
           ],
         ),
