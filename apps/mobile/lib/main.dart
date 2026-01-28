@@ -32,6 +32,7 @@ import 'screens/referee_requests_page.dart';
 import 'screens/referee_news_feed_page.dart';
 import 'screens/developer_panel_page.dart';
 import 'screens/game_scoring_page.dart';
+import 'screens/team_builder_page.dart';
 import 'widgets/main_shell.dart';
 
 /// M2DGv1 - Mobile (Flutter)
@@ -227,6 +228,11 @@ class _M2DGAppState extends State<M2DGApp> {
               path: '/social',
               name: 'social',
               builder: (context, state) => const SocialPage(),
+            ),
+            GoRoute(
+              path: '/team-builder',
+              name: 'teamBuilder',
+              builder: (context, state) => const TeamBuilderPage(),
             ),
             GoRoute(
               path: '/messages-inbox',
