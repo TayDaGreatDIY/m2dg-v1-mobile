@@ -16,9 +16,13 @@ class _DeveloperPanelPageState extends State<DeveloperPanelPage> {
   Future<void> _createTestReferee() async {
     setState(() => _isLoading = true);
     try {
+      // Generate unique email with timestamp to avoid rate limits
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final email = 'ref$timestamp@example.com';
+      
       // Create referee account with valid email format
       final authResponse = await supabase.auth.signUp(
-        email: 'testreferee123@example.com',
+        email: email,
         password: 'referee123',
       );
 
@@ -47,9 +51,9 @@ class _DeveloperPanelPageState extends State<DeveloperPanelPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Referee created: testreferee123@example.com / referee123'),
-            duration: Duration(seconds: 5),
+          SnackBar(
+            content: Text('✅ Referee created:\n$email / referee123'),
+            duration: const Duration(seconds: 5),
           ),
         );
       }
@@ -67,9 +71,13 @@ class _DeveloperPanelPageState extends State<DeveloperPanelPage> {
   Future<void> _createTestGameKeeper() async {
     setState(() => _isLoading = true);
     try {
+      // Generate unique email with timestamp to avoid rate limits
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final email = 'gk$timestamp@example.com';
+      
       // Create game keeper account with valid email format
       final authResponse = await supabase.auth.signUp(
-        email: 'testgamekeeper123@example.com',
+        email: email,
         password: 'keeper123',
       );
 
@@ -97,9 +105,9 @@ class _DeveloperPanelPageState extends State<DeveloperPanelPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Game Keeper created: testgamekeeper123@example.com / keeper123'),
-            duration: Duration(seconds: 5),
+          SnackBar(
+            content: Text('✅ Game Keeper created:\n$email / keeper123'),
+            duration: const Duration(seconds: 5),
           ),
         );
       }
@@ -205,7 +213,7 @@ class _DeveloperPanelPageState extends State<DeveloperPanelPage> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Email: testreferee123@example.com\nPassword: referee123',
+              'Generates unique email each time\nPassword: referee123',
               style: tt.bodySmall?.copyWith(
                 color: cs.onSurfaceVariant,
               ),
@@ -230,7 +238,7 @@ class _DeveloperPanelPageState extends State<DeveloperPanelPage> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Email: testgamekeeper123@example.com\nPassword: keeper123',
+              'Generates unique email each time\nPassword: keeper123',
               style: tt.bodySmall?.copyWith(
                 color: cs.onSurfaceVariant,
               ),
