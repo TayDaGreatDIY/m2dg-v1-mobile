@@ -121,6 +121,8 @@ class _MainShellState extends State<MainShell> {
       case 2:
         context.go('/leaderboard');
       case 3:
+        context.go('/social');
+      case 4:
         context.go('/profile');
     }
   }
@@ -135,7 +137,8 @@ class _MainShellState extends State<MainShell> {
       '/challenges' || '/referee-requests' || '/create-challenge' || '/challenge/:id' || '/opponent-search' =>
         1,
       '/leaderboard' => 2,
-      '/profile' => 3,
+      '/social' => 3,
+      '/profile' => 4,
       _ => 0, // courts
     };
 
@@ -212,6 +215,11 @@ class _MainShellState extends State<MainShell> {
             icon: const Icon(Icons.leaderboard_outlined),
             activeIcon: const Icon(Icons.leaderboard),
             label: 'Leaderboard',
+          ),
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.people_outlined),
+            activeIcon: const Icon(Icons.people),
+            label: 'Friends',
           ),
           BottomNavigationBarItem(
             icon: const Icon(Icons.person_outlined),
