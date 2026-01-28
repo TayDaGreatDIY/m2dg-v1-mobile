@@ -114,7 +114,8 @@ class _MainShellState extends State<MainShell> {
 
     switch (index) {
       case 0:
-        context.go('/');
+        // Courts for athletes, Referee Courts for referees
+        context.go(isReferee ? '/referee-courts' : '/');
       case 1:
         // Challenges for athletes, Requests for referees
         context.go(isReferee ? '/referee-requests' : '/challenges');
@@ -134,6 +135,7 @@ class _MainShellState extends State<MainShell> {
     // Update selected index based on current route
     final location = GoRouterState.of(context).matchedLocation;
     final newIndex = switch (location) {
+      '/' || '/referee-courts' => 0,
       '/challenges' || '/referee-requests' || '/create-challenge' || '/challenge/:id' || '/opponent-search' =>
         1,
       '/leaderboard' => 2,
