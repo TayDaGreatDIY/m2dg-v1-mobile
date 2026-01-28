@@ -27,6 +27,8 @@ import 'screens/messages_inbox_page.dart';
 import 'screens/court_admin_page.dart';
 import 'screens/referee_dashboard_page.dart';
 import 'screens/referee_profile_page.dart';
+import 'screens/referee_courts_page.dart';
+import 'screens/referee_requests_page.dart';
 import 'screens/developer_panel_page.dart';
 import 'screens/game_scoring_page.dart';
 import 'widgets/main_shell.dart';
@@ -172,6 +174,16 @@ class _M2DGAppState extends State<M2DGApp> {
                 final courtId = state.uri.queryParameters['courtId'] ?? '';
                 return OpponentSearchPage(courtId: courtId);
               },
+            ),
+            GoRoute(
+              path: '/referee-courts',
+              name: 'refereeCourts',
+              builder: (context, state) => const RefereeCourtsPage(),
+            ),
+            GoRoute(
+              path: '/referee-requests',
+              name: 'refereeRequests',
+              builder: (context, state) => const RefereeRequestsPage(),
             ),
             GoRoute(
               path: '/leaderboard',

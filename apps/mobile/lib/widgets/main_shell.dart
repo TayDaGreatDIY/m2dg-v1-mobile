@@ -21,12 +21,43 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _selectedIndex = 0;
   int _unreadCount = 0;
+  String? _userRole;
+  bool _loadingRole = true;
 
   @override
   void initState() {
     super.initState();
+    _loadUserRole();
     _loadUnreadCount();
     _setupNotificationListener();
+  }
+
+  Future<void> _loadUserRole() async {
+    try {
+      final userId = supabase.auth.currentUser?.id;
+      if (userId == null) return;
+
+      final profile = await supabase
+          .from('profiles')
+          .select('user_role')
+          .eq('user_id', userId)
+          .single();
+
+      if (mounted) {
+        setState(() {
+          _userRole = profile['user_role'] as String? ?? 'athlete';
+          _loadingRole = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading user role: $e');
+      if (mounted) {
+        setState(() {
+          _userRole = 'athlete';
+          _loadingRole = false;
+        });
+      }
+    }
   }
 
   void _loadUnreadCount() async {
@@ -79,11 +110,14 @@ class _MainShellState extends State<MainShell> {
     
     setState(() => _selectedIndex = index);
 
+    final isReferee = _userRole == 'referee';
+
     switch (index) {
       case 0:
         context.go('/');
       case 1:
-        context.go('/challenges');
+        // Challenges for athletes, Requests for referees
+        context.go(isReferee ? '/referee-requests' : '/challenges');
       case 2:
         context.go('/leaderboard');
       case 3:
@@ -93,10 +127,12 @@ class _MainShellState extends State<MainShell> {
 
   @override
   Widget build(BuildContext context) {
+    final isReferee = _userRole == 'referee';
+
     // Update selected index based on current route
     final location = GoRouterState.of(context).matchedLocation;
     final newIndex = switch (location) {
-      '/challenges' || '/create-challenge' || '/challenge/:id' || '/opponent-search' =>
+      '/challenges' || '/referee-requests' || '/create-challenge' || '/challenge/:id' || '/opponent-search' =>
         1,
       '/leaderboard' => 2,
       '/profile' => 3,
@@ -165,12 +201,12 @@ class _MainShellState extends State<MainShell> {
           BottomNavigationBarItem(
             icon: const Icon(Icons.location_on_outlined),
             activeIcon: const Icon(Icons.location_on),
-            label: 'Courts',
+            label: isReferee ? 'Courts' : 'Courts',
           ),
           BottomNavigationBarItem(
             icon: const Icon(Icons.sports_basketball_outlined),
             activeIcon: const Icon(Icons.sports_basketball),
-            label: 'Challenges',
+            label: isReferee ? 'Requests' : 'Challenges',
           ),
           BottomNavigationBarItem(
             icon: const Icon(Icons.leaderboard_outlined),
