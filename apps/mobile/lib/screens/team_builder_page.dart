@@ -219,8 +219,9 @@ class _TeamBuilderPageState extends State<TeamBuilderPage> with TickerProviderSt
           title: Text('Select $requiredCount Players'),
           content: SizedBox(
             width: double.maxFinite,
+            height: 400, // Fixed height for better control
             child: Column(
-              mainAxisSize: MainAxisSize.min,
+              mainAxisSize: MainAxisSize.max,
               children: [
                 // Header with count
                 Container(
@@ -244,7 +245,7 @@ class _TeamBuilderPageState extends State<TeamBuilderPage> with TickerProviderSt
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
 
                 // Search field
                 TextField(
@@ -252,6 +253,7 @@ class _TeamBuilderPageState extends State<TeamBuilderPage> with TickerProviderSt
                     hintText: 'Search friends...',
                     prefixIcon: const Icon(Icons.search),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    isDense: true,
                   ),
                   onChanged: (query) {
                     setDialogState(() {
@@ -267,68 +269,63 @@ class _TeamBuilderPageState extends State<TeamBuilderPage> with TickerProviderSt
                     });
                   },
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
 
-                // Friends list
-                if (isLoadingFriends)
-                  const Center(child: CircularProgressIndicator())
-                else if (allFriends.isEmpty)
-                  Expanded(
-                    child: Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.people_outline, size: 48, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                          const SizedBox(height: 12),
-                          Text('No friends yet', style: Theme.of(context).textTheme.bodyMedium),
-                        ],
-                      ),
-                    ),
-                  )
-                else
-                  Expanded(
-                    child: ListView.builder(
-                      itemCount: filteredFriends.length,
-                      itemBuilder: (context, index) {
-                        final friend = filteredFriends[index];
-                        final userId = friend['user_id'] as String?;
-                        final displayName = friend['display_name'] ?? friend['username'] ?? 'Unknown';
-                        final isSelected = selected.contains(userId);
-                        final isDisabled = !isSelected && selected.length >= requiredCount;
+                // Friends list - scrollable
+                Expanded(
+                  child: isLoadingFriends
+                      ? const Center(child: CircularProgressIndicator())
+                      : allFriends.isEmpty
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.people_outline, size: 48, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                                  const SizedBox(height: 12),
+                                  Text('No friends yet', style: Theme.of(context).textTheme.bodyMedium),
+                                ],
+                              ),
+                            )
+                          : filteredFriends.isEmpty
+                              ? Center(
+                                  child: Text('No results for "$searchQuery"', style: Theme.of(context).textTheme.bodySmall),
+                                )
+                              : ListView.builder(
+                                  itemCount: filteredFriends.length,
+                                  itemBuilder: (context, index) {
+                                    final friend = filteredFriends[index];
+                                    final userId = friend['user_id'] as String?;
+                                    final displayName = friend['display_name'] ?? friend['username'] ?? 'Unknown';
+                                    final isSelected = selected.contains(userId);
+                                    final isDisabled = !isSelected && selected.length >= requiredCount;
 
-                        return ListTile(
-                          enabled: !isDisabled,
-                          leading: CircleAvatar(
-                            child: Text(
-                              displayName[0].toUpperCase(),
-                              style: const TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                          title: Text(displayName),
-                          trailing: Checkbox(
-                            value: isSelected,
-                            onChanged: isDisabled
-                                ? null
-                                : (bool? value) {
-                                    setDialogState(() {
-                                      if (value == true && userId != null) {
-                                        selected.add(userId);
-                                      } else if (value == false && userId != null) {
-                                        selected.removeWhere((id) => id == userId);
-                                      }
-                                    });
+                                    return CheckboxListTile(
+                                      value: isSelected,
+                                      enabled: !isDisabled,
+                                      onChanged: isDisabled
+                                          ? null
+                                          : (bool? value) {
+                                              setDialogState(() {
+                                                if (value == true && userId != null) {
+                                                  selected.add(userId);
+                                                } else if (value == false && userId != null) {
+                                                  selected.removeWhere((id) => id == userId);
+                                                }
+                                              });
+                                            },
+                                      title: Text(displayName),
+                                      subtitle: Text(friend['username'] ?? ''),
+                                      dense: true,
+                                    );
                                   },
-                          ),
-                        );
-                      },
-                    ),
-                  ),
+                                ),
+                ),
 
                 // Selected players chips
                 if (selected.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   const Divider(),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Text('Selected:', style: Theme.of(context).textTheme.labelSmall),
