@@ -21,6 +21,7 @@ class _SignUpPageState extends State<SignUpPage> {
   bool _showPassword = false;
   bool _showConfirmPassword = false;
   bool _agreeTerms = false;
+  String? _selectedRole = 'athlete'; // Default role
 
   @override
   void dispose() {
@@ -69,14 +70,24 @@ class _SignUpPageState extends State<SignUpPage> {
     });
 
     try {
-      await supabase.auth.signUp(
+      final authResponse = await supabase.auth.signUp(
         email: email,
         password: password,
       );
 
+      if (authResponse.user == null) throw Exception('Signup failed');
+
+      // Create profile with role immediately
+      await supabase.from('profiles').upsert({
+        'user_id': authResponse.user!.id,
+        'display_name': email.split('@')[0],
+        'user_role': _selectedRole,
+        'orientation_completed': false,
+      });
+
       if (!mounted) return;
-      _toast('Account created! Choose your role.');
-      context.go('/role-selection');
+      _toast('Account created! Welcome to M2DG.');
+      context.go('/profile-setup');
     } on AuthException catch (e) {
       if (!mounted) return;
       setState(() => _error = e.message);
@@ -173,6 +184,21 @@ class _SignUpPageState extends State<SignUpPage> {
                 enabled: !_loading,
               ),
               const SizedBox(height: 16),
+              // Role Selection
+              Text(
+                'What are you signing up as?',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              _RoleSelector(
+                selectedRole: _selectedRole,
+                onRoleSelected: _loading ? null : (role) {
+                  setState(() => _selectedRole = role);
+                },
+              ),
+              const SizedBox(height: 16),
               CheckboxListTile(
                 value: _agreeTerms,
                 onChanged: _loading ? null : (v) => setState(() => _agreeTerms = v ?? false),
@@ -230,3 +256,56 @@ class _SignUpPageState extends State<SignUpPage> {
     );
   }
 }
+
+class _RoleSelector extends StatelessWidget {
+  final String? selectedRole;
+  final Function(String)? onRoleSelected;
+
+  const _RoleSelector({
+    required this.selectedRole,
+    this.onRoleSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    const roles = [
+      ('athlete', '🏀 Athlete'),
+      ('referee', '🏆 Referee'),
+      ('verified_scorer', '📊 Verified Scorer'),
+      ('parent', '👨‍👩‍👧‍👦 Parent'),
+    ];
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: roles.map((role) {
+        final isSelected = selectedRole == role.$1;
+        return InkWell(
+          onTap: onRoleSelected != null ? () => onRoleSelected!(role.$1) : null,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: isSelected ? cs.primary : cs.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isSelected ? cs.primary : cs.outline,
+                width: isSelected ? 2 : 1,
+              ),
+            ),
+            child: Text(
+              role.$2,
+              style: TextStyle(
+                color: isSelected ? cs.onPrimary : cs.onSurface,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
