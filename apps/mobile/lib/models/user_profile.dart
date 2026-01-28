@@ -7,6 +7,8 @@ class UserProfile {
   final String? bio;
   final String? skillLevel;
   final String? preferredPosition;
+  final String userRole; // 'athlete', 'referee', 'verified_scorer', 'parent'
+  final bool orientationCompleted;
 
   UserProfile({
     required this.id,
@@ -17,6 +19,8 @@ class UserProfile {
     this.bio,
     this.skillLevel,
     this.preferredPosition,
+    this.userRole = 'athlete',
+    this.orientationCompleted = false,
   });
 
   factory UserProfile.fromJson(Map<String, dynamic> json) {
@@ -29,6 +33,8 @@ class UserProfile {
       bio: json['bio'] as String?,
       skillLevel: json['skill_level'] as String?,
       preferredPosition: json['preferred_position'] as String?,
+      userRole: json['user_role'] as String? ?? 'athlete',
+      orientationCompleted: json['orientation_completed'] as bool? ?? false,
     );
   }
 
@@ -41,5 +47,7 @@ class UserProfile {
         'bio': bio,
         'skill_level': skillLevel,
         'preferred_position': preferredPosition,
+        'user_role': userRole,
+        'orientation_completed': orientationCompleted,
       };
 }

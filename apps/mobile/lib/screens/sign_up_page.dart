@@ -75,8 +75,8 @@ class _SignUpPageState extends State<SignUpPage> {
       );
 
       if (!mounted) return;
-      _toast('Account created! Please set up your profile.');
-      context.go('/profile-setup');
+      _toast('Account created! Choose your role.');
+      context.go('/role-selection');
     } on AuthException catch (e) {
       if (!mounted) return;
       setState(() => _error = e.message);

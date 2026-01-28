@@ -8,6 +8,7 @@ import 'screens/courts_page.dart';
 import 'screens/court_details_page.dart';
 import 'screens/sign_in_page.dart';
 import 'screens/sign_up_page.dart';
+import 'screens/role_selection_page.dart';
 import 'screens/profile_setup_page.dart';
 import 'screens/onboarding_page.dart';
 import 'screens/challenges_page.dart';
@@ -104,6 +105,11 @@ class _M2DGAppState extends State<M2DGApp> {
           path: '/sign-up',
           name: 'signUp',
           builder: (context, state) => const SignUpPage(),
+        ),
+        GoRoute(
+          path: '/role-selection',
+          name: 'roleSelection',
+          builder: (context, state) => const RoleSelectionPage(),
         ),
         GoRoute(
           path: '/profile-setup',
