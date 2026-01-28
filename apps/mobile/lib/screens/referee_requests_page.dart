@@ -31,11 +31,10 @@ class _RefereeRequestsPageState extends State<RefereeRequestsPage> {
       final userId = supabase.auth.currentUser?.id;
       if (userId == null) throw Exception('Not authenticated');
 
-      // Fetch challenges where this user is the referee (or assigned referee)
+      // Fetch challenges where this user is the referee
       final response = await supabase
           .from('challenges')
-          .select(
-              'id, creator_id, opponent_id, court_id, status, created_at, scheduled_start_time, profiles!challenges_creator_id_fkey(display_name, avatar_url), courts(name, city)')
+          .select('*')
           .eq('assigned_referee_id', userId)
           .order('created_at', ascending: false);
 
@@ -105,9 +104,8 @@ class _RefereeRequestsPageState extends State<RefereeRequestsPage> {
           itemCount: _refereeRequests.length,
           itemBuilder: (context, index) {
             final request = _refereeRequests[index];
-            final profile = request['profiles'] as Map<String, dynamic>?;
-            final court = request['courts'] as Map<String, dynamic>?;
-            final status = request['status'] as String;
+            final status = request['status'] as String? ?? 'pending';
+            final scheduledTime = request['scheduled_start_time'] as String?;
 
             return Card(
               margin: const EdgeInsets.only(bottom: 16),
@@ -117,72 +115,63 @@ class _RefereeRequestsPageState extends State<RefereeRequestsPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        CircleAvatar(
-                          backgroundImage: profile?['avatar_url'] != null
-                              ? NetworkImage(profile!['avatar_url'])
-                              : null,
-                          child: profile?['avatar_url'] == null
-                              ? const Icon(Icons.person)
-                              : null,
-                        ),
-                        const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                profile?['display_name'] ?? 'Unknown Player',
+                                'Challenge Request',
                                 style: tt.titleSmall,
                               ),
-                              Text(
-                                '${court?['name'] ?? 'Unknown Court'} • ${court?['city'] ?? ''}',
-                                style: tt.bodySmall,
+                              const SizedBox(height: 4),
+                              if (scheduledTime != null)
+                                Text(
+                                  'Scheduled: $scheduledTime',
+                                  style: tt.bodySmall,
+                                ),
+                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: status == 'pending'
+                                      ? cs.primaryContainer
+                                      : cs.tertiaryContainer,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  status.replaceAll('_', ' ').toUpperCase(),
+                                  style: tt.labelSmall,
+                                ),
                               ),
                             ],
                           ),
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: status == 'waiting_for_start'
-                                ? cs.primaryContainer
-                                : cs.tertiaryContainer,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            status.replaceAll('_', ' ').toUpperCase(),
-                            style: tt.labelSmall?.copyWith(
-                              color: status == 'waiting_for_start'
-                                  ? cs.onPrimaryContainer
-                                  : cs.onTertiaryContainer,
-                            ),
-                          ),
-                        ),
                       ],
                     ),
-                    const SizedBox(height: 12),
-                    if (request['scheduled_start_time'] != null)
-                      Text(
-                        'Scheduled: ${request['scheduled_start_time']}',
-                        style: tt.bodySmall,
-                      ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 16),
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
-                        ElevatedButton(
-                          onPressed: () {
-                            // TODO: Accept referee request
-                          },
-                          child: const Text('Accept'),
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () {
+                              // TODO: Decline request
+                              print('Decline request: ${request['id']}');
+                            },
+                            child: const Text('Decline'),
+                          ),
                         ),
-                        OutlinedButton(
-                          onPressed: () {
-                            // TODO: Decline referee request
-                          },
-                          child: const Text('Decline'),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: () {
+                              // TODO: Accept request
+                              print('Accept request: ${request['id']}');
+                            },
+                            child: const Text('Accept'),
+                          ),
                         ),
                       ],
                     ),

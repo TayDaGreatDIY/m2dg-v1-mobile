@@ -25,7 +25,12 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   void initState() {
     super.initState();
-    _loadUserRole();
+    _initializeProfile();
+  }
+
+  Future<void> _initializeProfile() async {
+    // Load role FIRST, then load stats based on role
+    await _loadUserRole();
     _loadProfile();
     _loadStats();
     _loadDeveloperMode();
