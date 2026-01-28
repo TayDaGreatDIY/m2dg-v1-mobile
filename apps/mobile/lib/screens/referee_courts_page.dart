@@ -32,7 +32,7 @@ class _RefereeCourtsPageState extends State<RefereeCourtsPage> {
       final response = await supabase
           .from('game_sessions')
           .select(
-              'id, court_id, status, team_a_score, team_b_score, started_at, courts(id, name, city, location), game_session_players(user_id)')
+              'id, court_id, status, team_a_score, team_b_score, started_at, courts(id, name, city), game_session_players(user_id)')
           .inFilter('status', ['active', 'in_progress'])
           .order('started_at', ascending: false);
 
