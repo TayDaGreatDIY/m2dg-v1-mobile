@@ -82,6 +82,118 @@ class _TeamBuilderPageState extends State<TeamBuilderPage> with TickerProviderSt
     }
   }
 
+  // Developer helper: Add test friends for account
+  Future<void> _showAddTestFriendsDialog() async {
+    try {
+      final userId = supabase.auth.currentUser?.id;
+      if (userId == null) return;
+
+      // Fetch all users except current user
+      final allUsers = await supabase
+          .from('profiles')
+          .select('user_id, username, display_name')
+          .neq('user_id', userId)
+          .limit(20);
+
+      if (!mounted) return;
+
+      showDialog(
+        context: context,
+        builder: (context) => StatefulBuilder(
+          builder: (context, setDialogState) {
+            List<String> selectedUserIds = [];
+
+            return AlertDialog(
+              title: const Text('🔧 DEV: Add Test Friends'),
+              content: SizedBox(
+                width: double.maxFinite,
+                height: 300,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Select users to add as friends (for testing)',
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: (allUsers as List).length,
+                        itemBuilder: (context, index) {
+                          final user = (allUsers as List)[index] as Map<String, dynamic>;
+                          final userId = user['user_id'] as String?;
+                          final username = user['username'] ?? 'Unknown';
+                          final isSelected = selectedUserIds.contains(userId);
+
+                          return CheckboxListTile(
+                            value: isSelected,
+                            onChanged: (bool? value) {
+                              setDialogState(() {
+                                if (value == true && userId != null) {
+                                  selectedUserIds.add(userId);
+                                } else if (value == false && userId != null) {
+                                  selectedUserIds.removeWhere((id) => id == userId);
+                                }
+                              });
+                            },
+                            title: Text(username),
+                            subtitle: Text(user['display_name'] ?? ''),
+                            dense: true,
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: selectedUserIds.isNotEmpty
+                      ? () async {
+                          try {
+                            // Create friendships for each selected user
+                            for (var friendId in selectedUserIds) {
+                              await supabase.from('friendships').insert({
+                                'user_id': userId,
+                                'friend_id': friendId,
+                                'status': 'accepted', // Auto-accept for testing
+                              });
+                            }
+
+                            if (!mounted) return;
+                            Navigator.pop(context);
+                            
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('✅ Added ${selectedUserIds.length} test friends')),
+                            );
+
+                            // Refresh the teams/friends if needed
+                            _loadUserTeams();
+                            _loadAllTeams();
+                          } catch (e) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Error: $e')),
+                            );
+                          }
+                        }
+                      : null,
+                  child: const Text('Add Friends'),
+                ),
+              ],
+            );
+          },
+        ),
+      );
+    } catch (e) {
+      print('Error: $e');
+    }
+  }
+
   void _showCreateTeamDialog() {
     final teamNameController = TextEditingController();
     String selectedGameType = '5v5';
@@ -376,6 +488,16 @@ class _TeamBuilderPageState extends State<TeamBuilderPage> with TickerProviderSt
       appBar: AppBar(
         title: const Text('Team Builder'),
         elevation: 0,
+        actions: [
+          // Developer helper button
+          Tooltip(
+            message: 'Add test friends for development',
+            child: IconButton(
+              icon: const Icon(Icons.build),
+              onPressed: _showAddTestFriendsDialog,
+            ),
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
