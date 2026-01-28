@@ -24,6 +24,8 @@ import 'screens/social_page.dart';
 import 'screens/messages_page.dart';
 import 'screens/messages_inbox_page.dart';
 import 'screens/court_admin_page.dart';
+import 'screens/referee_dashboard_page.dart';
+import 'screens/referee_profile_page.dart';
 import 'widgets/main_shell.dart';
 
 /// M2DGv1 - Mobile (Flutter)
@@ -227,6 +229,19 @@ class _M2DGAppState extends State<M2DGApp> {
               builder: (context, state) {
                 final courtId = state.pathParameters['courtId']!;
                 return CourtAdminPage(courtId: courtId);
+              },
+            ),
+            GoRoute(
+              path: '/referee-dashboard',
+              name: 'refereeDashboard',
+              builder: (context, state) => const RefereeDashboardPage(),
+            ),
+            GoRoute(
+              path: '/referee-profile/:userId',
+              name: 'refereeProfile',
+              builder: (context, state) {
+                final userId = state.pathParameters['userId'];
+                return RefereeProfilePage(refereeId: userId);
               },
             ),
           ],
