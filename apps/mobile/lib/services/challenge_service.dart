@@ -276,4 +276,220 @@ class ChallengeService {
       print('⚠️  Error completing challenge: $e');
     }
   }
+
+  /// Set creator or opponent ready status
+  static Future<void> setPlayerReady(String challengeId, String userId, bool ready) async {
+    try {
+      final challenge = await fetchChallenge(challengeId);
+      final isCreator = challenge.creatorId == userId;
+      
+      final updateField = isCreator ? 'creator_ready' : 'opponent_ready';
+      
+      await supabase
+          .from('challenges')
+          .update({updateField: ready})
+          .eq('id', challengeId);
+
+      print('✅ Player ready status updated: $updateField = $ready');
+    } catch (e) {
+      print('❌ Error updating ready status: $e');
+      throw Exception('Failed to update ready status: $e');
+    }
+  }
+
+  /// Set scheduled start time for challenge
+  static Future<void> setScheduledStartTime(
+      String challengeId, DateTime scheduledTime) async {
+    try {
+      await supabase
+          .from('challenges')
+          .update({'scheduled_start_time': scheduledTime.toIso8601String()})
+          .eq('id', challengeId);
+
+      print('✅ Scheduled start time set: $scheduledTime');
+    } catch (e) {
+      print('❌ Error setting scheduled start time: $e');
+      throw Exception('Failed to set scheduled start time: $e');
+    }
+  }
+
+  /// Request referee for challenge
+  static Future<void> requestReferee(String challengeId) async {
+    try {
+      await supabase
+          .from('challenges')
+          .update({'referee_requested': true})
+          .eq('id', challengeId);
+
+      print('✅ Referee requested for challenge: $challengeId');
+    } catch (e) {
+      print('❌ Error requesting referee: $e');
+      throw Exception('Failed to request referee: $e');
+    }
+  }
+
+  /// Get available referees (users with referee role/badge)
+  static Future<List<Map<String, dynamic>>> getAvailableReferees() async {
+    try {
+      // Query for referees - this would be users marked as referees in their profile
+      final response = await supabase
+          .from('profiles')
+          .select('id, display_name, profile_picture_url')
+          .eq('is_referee', true)
+          .order('display_name');
+
+      return response as List<Map<String, dynamic>>;
+    } catch (e) {
+      print('❌ Error fetching available referees: $e');
+      return [];
+    }
+  }
+
+  /// Create referee assignment notification
+  static Future<void> requestRefereeAssignment(
+      String challengeId, String refereeId) async {
+    try {
+      await supabase.from('referee_assignments').insert({
+        'challenge_id': challengeId,
+        'referee_id': refereeId,
+        'status': 'pending',
+      });
+
+      print('✅ Referee assignment created for $refereeId');
+    } catch (e) {
+      print('❌ Error creating referee assignment: $e');
+      throw Exception('Failed to assign referee: $e');
+    }
+  }
+
+  /// Get pending referee assignments for a user
+  static Future<List<Map<String, dynamic>>> getPendingRefereeAssignments(
+      String refereeId) async {
+    try {
+      final response = await supabase
+          .from('referee_assignments')
+          .select(
+              '''
+            id,
+            challenge_id,
+            status,
+            created_at,
+            challenges:challenge_id (
+              id,
+              challenge_type,
+              court_id,
+              scheduled_start_time,
+              creator_id,
+              opponent_id
+            )
+          ''')
+          .eq('referee_id', refereeId)
+          .eq('status', 'pending')
+          .order('created_at', ascending: false);
+
+      return response as List<Map<String, dynamic>>;
+    } catch (e) {
+      print('❌ Error fetching referee assignments: $e');
+      return [];
+    }
+  }
+
+  /// Update referee assignment status
+  static Future<void> updateRefereeAssignmentStatus(
+      String assignmentId, String status) async {
+    try {
+      await supabase
+          .from('referee_assignments')
+          .update({'status': status, 'responded_at': DateTime.now().toIso8601String()})
+          .eq('id', assignmentId);
+
+      print('✅ Referee assignment updated: $status');
+    } catch (e) {
+      print('❌ Error updating referee assignment: $e');
+      throw Exception('Failed to update assignment: $e');
+    }
+  }
+
+  /// Assign referee to challenge
+  static Future<void> assignRefereeToChallenge(
+      String challengeId, String refereeId) async {
+    try {
+      await supabase
+          .from('challenges')
+          .update({'assigned_referee_id': refereeId})
+          .eq('id', challengeId);
+
+      print('✅ Referee assigned to challenge: $refereeId');
+    } catch (e) {
+      print('❌ Error assigning referee: $e');
+      throw Exception('Failed to assign referee: $e');
+    }
+  }
+
+  /// Check if player should be marked as no-show (forfeit)
+  static Future<bool> checkNoShow(String challengeId, String userId) async {
+    try {
+      final challenge = await fetchChallenge(challengeId);
+      
+      if (challenge.scheduledStartTime == null) return false;
+      
+      final now = DateTime.now();
+      final fiveMinutesAfterStart = challenge.scheduledStartTime!.add(Duration(minutes: 5));
+      
+      // If it's past the 5-minute grace period and player hasn't marked as ready
+      if (now.isAfter(fiveMinutesAfterStart)) {
+        final isCreator = challenge.creatorId == userId;
+        final isReady = isCreator ? challenge.creatorReady : challenge.opponentReady;
+        
+        if (!isReady) {
+          return true; // Player is a no-show
+        }
+      }
+      
+      return false;
+    } catch (e) {
+      print('❌ Error checking no-show: $e');
+      return false;
+    }
+  }
+
+  /// Record forfeit (no-show)
+  static Future<void> recordForfeit(String challengeId, String userIdWhoForfeited) async {
+    try {
+      final challenge = await fetchChallenge(challengeId);
+      
+      // Determine the winner (the player who didn't forfeit)
+      final winnerId = challenge.creatorId == userIdWhoForfeited 
+          ? challenge.opponentId 
+          : challenge.creatorId;
+
+      await supabase
+          .from('challenges')
+          .update({
+            'status': 'completed',
+            'winner_id': winnerId,
+          })
+          .eq('id', challengeId);
+
+      // Update the forfeiter's stats (add a loss)
+      final stats = await supabase
+          .from('player_stats')
+          .select()
+          .eq('user_id', userIdWhoForfeited)
+          .single();
+
+      await supabase
+          .from('player_stats')
+          .update({
+            'total_games': (stats['total_games'] as int) + 1,
+            'total_losses': (stats['total_losses'] as int) + 1,
+          })
+          .eq('user_id', userIdWhoForfeited);
+
+      print('✅ Forfeit recorded for user: $userIdWhoForfeited');
+    } catch (e) {
+      print('❌ Error recording forfeit: $e');
+      throw Exception('Failed to record forfeit: $e');
+    }
+  }
 }

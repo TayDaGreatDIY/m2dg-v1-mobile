@@ -13,6 +13,11 @@ class Challenge {
   final DateTime createdAt;
   final DateTime? startedAt;
   final DateTime? completedAt;
+  final DateTime? scheduledStartTime;
+  final bool creatorReady;
+  final bool opponentReady;
+  final bool refereeRequested;
+  final String? assignedRefereeId;
 
   Challenge({
     required this.id,
@@ -29,6 +34,11 @@ class Challenge {
     required this.createdAt,
     this.startedAt,
     this.completedAt,
+    this.scheduledStartTime,
+    this.creatorReady = false,
+    this.opponentReady = false,
+    this.refereeRequested = false,
+    this.assignedRefereeId,
   });
 
   factory Challenge.fromJson(Map<String, dynamic> json) {
@@ -53,6 +63,13 @@ class Challenge {
       completedAt: json['completed_at'] != null
           ? DateTime.parse(json['completed_at'] as String)
           : null,
+      scheduledStartTime: json['scheduled_start_time'] != null
+          ? DateTime.parse(json['scheduled_start_time'] as String)
+          : null,
+      creatorReady: json['creator_ready'] as bool? ?? false,
+      opponentReady: json['opponent_ready'] as bool? ?? false,
+      refereeRequested: json['referee_requested'] as bool? ?? false,
+      assignedRefereeId: json['assigned_referee_id'] as String?,
     );
   }
 
@@ -71,5 +88,10 @@ class Challenge {
     'created_at': createdAt.toIso8601String(),
     'started_at': startedAt?.toIso8601String(),
     'completed_at': completedAt?.toIso8601String(),
+    'scheduled_start_time': scheduledStartTime?.toIso8601String(),
+    'creator_ready': creatorReady,
+    'opponent_ready': opponentReady,
+    'referee_requested': refereeRequested,
+    'assigned_referee_id': assignedRefereeId,
   };
 }

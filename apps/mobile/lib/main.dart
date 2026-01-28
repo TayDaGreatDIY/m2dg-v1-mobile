@@ -19,6 +19,7 @@ import 'screens/profile_page.dart';
 import 'screens/player_profile_page.dart';
 import 'screens/notifications_page.dart';
 import 'screens/active_game_page.dart';
+import 'screens/game_waiting_page.dart';
 import 'screens/social_page.dart';
 import 'screens/messages_page.dart';
 import 'screens/messages_inbox_page.dart';
@@ -152,6 +153,14 @@ class _M2DGAppState extends State<M2DGApp> {
               builder: (context, state) {
                 final id = state.pathParameters['id']!;
                 return ActiveGamePage(courtId: '', gameId: id);
+              },
+            ),
+            GoRoute(
+              path: '/game-waiting/:challengeId',
+              name: 'gameWaiting',
+              builder: (context, state) {
+                final challengeId = state.pathParameters['challengeId']!;
+                return GameWaitingPage(challengeId: challengeId);
               },
             ),
             GoRoute(

@@ -86,18 +86,18 @@ class _ChallengeDetailsPageState extends State<ChallengeDetailsPage> {
       await ChallengeService.acceptChallenge(widget.challengeId);
       if (!mounted) return;
       
-      setState(() {
-        _challengeFuture = ChallengeService.fetchChallenge(widget.challengeId);
-      });
-
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Challenge accepted!')),
+        const SnackBar(content: Text('✅ Challenge accepted!'), duration: Duration(seconds: 2)),
       );
+
+      // Navigate to game waiting screen
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (!mounted) return;
+      context.go('/game-waiting/${widget.challengeId}');
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: $e')),
       );
-    } finally {
       if (mounted) setState(() => _isProcessing = false);
     }
   }
@@ -105,6 +105,18 @@ class _ChallengeDetailsPageState extends State<ChallengeDetailsPage> {
   Future<void> _declineChallenge() async {
     setState(() => _isProcessing = true);
     try {
+      final challenge = _challenge;
+      if (challenge?.scheduledStartTime != null) {
+        final now = DateTime.now();
+        final fiveMinutesBeforeStart =
+            challenge!.scheduledStartTime!.subtract(Duration(minutes: 5));
+
+        if (now.isAfter(fiveMinutesBeforeStart)) {
+          throw Exception(
+              'Cannot decline within 5 minutes of scheduled start time');
+        }
+      }
+
       await ChallengeService.declineChallenge(widget.challengeId);
       if (!mounted) return;
       context.pop();
