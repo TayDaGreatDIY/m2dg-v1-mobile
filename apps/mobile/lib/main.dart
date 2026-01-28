@@ -29,6 +29,7 @@ import 'screens/referee_dashboard_page.dart';
 import 'screens/referee_profile_page.dart';
 import 'screens/referee_courts_page.dart';
 import 'screens/referee_requests_page.dart';
+import 'screens/referee_news_feed_page.dart';
 import 'screens/developer_panel_page.dart';
 import 'screens/game_scoring_page.dart';
 import 'widgets/main_shell.dart';
@@ -184,6 +185,11 @@ class _M2DGAppState extends State<M2DGApp> {
               path: '/referee-requests',
               name: 'refereeRequests',
               builder: (context, state) => const RefereeRequestsPage(),
+            ),
+            GoRoute(
+              path: '/referee-news-feed',
+              name: 'refereeNewsFeed',
+              builder: (context, state) => const RefereeNewsFeedPage(),
             ),
             GoRoute(
               path: '/leaderboard',
