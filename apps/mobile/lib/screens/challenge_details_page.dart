@@ -353,6 +353,52 @@ class _ChallengeDetailsPageState extends State<ChallengeDetailsPage> {
                   ),
                   const SizedBox(height: 24),
 
+                  // Challenge Members
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: FutureBuilder<String>(
+                          future: ChallengeService.fetchOpponentName(challenge.creatorId),
+                          builder: (context, snapshot) {
+                            final creatorName = snapshot.data ?? 'Creator...';
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Creator', style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant)),
+                                Text(creatorName, style: tt.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+                              ],
+                            );
+                          },
+                        ),
+                      ),
+                      Expanded(
+                        child: challenge.opponentId != null
+                            ? FutureBuilder<String>(
+                                future: ChallengeService.fetchOpponentName(challenge.opponentId!),
+                                builder: (context, snapshot) {
+                                  final opponentName = snapshot.data ?? 'Opponent...';
+                                  return Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text('Opponent', style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant)),
+                                      Text(opponentName, style: tt.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+                                    ],
+                                  );
+                                },
+                              )
+                            : Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Opponent', style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant)),
+                                  Text('Waiting...', style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant, fontStyle: FontStyle.italic)),
+                                ],
+                              ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+
                   // Scoring method
                   if (isAccepted || (isOpen && !isCreator))
                     Column(
