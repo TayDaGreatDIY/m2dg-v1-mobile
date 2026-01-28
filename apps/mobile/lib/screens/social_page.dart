@@ -20,7 +20,7 @@ class _SocialPageState extends State<SocialPage> with SingleTickerProviderStateM
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _loadData();
   }
 
@@ -255,6 +255,7 @@ class _SocialPageState extends State<SocialPage> with SingleTickerProviderStateM
             Tab(text: 'Friends (${_friends.length})'),
             Tab(text: 'Requests (${_pendingRequests.length})'),
             const Tab(text: 'Find'),
+            const Tab(text: 'Teams'),
           ],
         ),
       ),
@@ -427,6 +428,35 @@ class _SocialPageState extends State<SocialPage> with SingleTickerProviderStateM
                           onPressed: _searchUsers,
                           icon: const Icon(Icons.search),
                           label: const Text('Search Users'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                // Teams Tab
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.groups_3, size: 64, color: cs.primary),
+                        const SizedBox(height: 24),
+                        Text(
+                          'Team Building',
+                          style: tt.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Build your Starting 5 or 3v3 lineup and challenge friends',
+                          style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 32),
+                        FilledButton.icon(
+                          onPressed: () => context.go('/team-builder'),
+                          icon: const Icon(Icons.add_circle_outline),
+                          label: const Text('Go to Team Builder'),
                         ),
                       ],
                     ),
