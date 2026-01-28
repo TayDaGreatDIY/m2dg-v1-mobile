@@ -135,40 +135,49 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
         _filterPlayers();
       } else {
         // Load referee stats if user is a referee
-        final refereeResponse = await supabase
-            .from('referee_profiles')
-            .select('*')
-            .order('games_refereed_total', ascending: false);
+        try {
+          final refereeResponse = await supabase
+              .from('referee_profiles')
+              .select('*')
+              .order('games_refereed_total', ascending: false);
 
-        final profilesResponse = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('user_role', 'referee');
+          final profilesResponse = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('user_role', 'referee');
 
-        final refereeList = (refereeResponse as List).map((row) {
-          return Map<String, dynamic>.from(row as Map);
-        }).toList();
+          final refereeList = (refereeResponse as List).map((row) {
+            return Map<String, dynamic>.from(row as Map);
+          }).toList();
 
-        final profilesMap = {
-          for (var p in (profilesResponse as List))
-            (p['user_id'] as String): Map<String, dynamic>.from(p as Map)
-        };
-
-        final referees = refereeList.map((ref) {
-          final userId = ref['user_id'] as String;
-          final profile = profilesMap[userId];
-          return {
-            ...ref,
-            'profile': profile,
+          final profilesMap = {
+            for (var p in (profilesResponse as List))
+              (p['user_id'] as String): Map<String, dynamic>.from(p as Map)
           };
-        }).toList();
 
-        setState(() {
-          _allReferees = referees;
-          _loading = false;
-        });
+          final referees = refereeList.map((ref) {
+            final userId = ref['user_id'] as String;
+            final profile = profilesMap[userId];
+            return {
+              ...ref,
+              'profile': profile,
+            };
+          }).toList();
 
-        _filterReferees();
+          setState(() {
+            _allReferees = referees;
+            _loading = false;
+          });
+
+          _filterReferees();
+        } catch (e) {
+          // If referee_profiles table doesn't exist, show empty state
+          print('Note: referee_profiles table not found. $e');
+          setState(() {
+            _allReferees = [];
+            _loading = false;
+          });
+        }
       }
     } catch (e) {
       print('Error loading leaderboard: $e');

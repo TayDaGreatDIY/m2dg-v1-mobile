@@ -32,8 +32,8 @@ class _RefereeCourtsPageState extends State<RefereeCourtsPage> {
       final response = await supabase
           .from('game_sessions')
           .select(
-              'id, court_id, status, team1_score, team2_score, started_at, courts(id, name, city, location)')
-          .inFilter('status', ['waiting_for_referee', 'active', 'in_progress'])
+              'id, court_id, status, team_a_score, team_b_score, started_at, courts(id, name, city, location)')
+          .inFilter('status', ['active', 'in_progress'])
           .order('started_at', ascending: false);
 
       setState(() {
@@ -154,8 +154,8 @@ class _RefereeCourtsPageState extends State<RefereeCourtsPage> {
             final game = _activeGames[index];
             final court = game['courts'] as Map<String, dynamic>?;
             final status = game['status'] as String;
-            final team1Score = game['team1_score'] ?? 0;
-            final team2Score = game['team2_score'] ?? 0;
+            final team1Score = game['team_a_score'] ?? 0;
+            final team2Score = game['team_b_score'] ?? 0;
             final startedAt = game['started_at'] as String?;
 
             return Card(
