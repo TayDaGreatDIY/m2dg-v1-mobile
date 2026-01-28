@@ -355,6 +355,11 @@ class _ProfilePageState extends State<ProfilePage> {
                           ),
                           const SizedBox(height: 12),
                           FilledButton.tonal(
+                            onPressed: () => context.push('/dev-panel'),
+                            child: const Text('⚙️ Developer Panel'),
+                          ),
+                          const SizedBox(height: 12),
+                          FilledButton.tonal(
                             onPressed: _signOut,
                             child: const Text('Sign Out'),
                           ),

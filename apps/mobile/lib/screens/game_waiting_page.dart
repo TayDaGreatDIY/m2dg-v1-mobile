@@ -65,19 +65,28 @@ class _GameWaitingPageState extends State<GameWaitingPage> {
     setState(() => _isProcessing = true);
     try {
       await ChallengeService.setPlayerReady(widget.challengeId, userId, true);
-      setState(() {
-        _challengeFuture = ChallengeService.fetchChallenge(widget.challengeId);
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('✅ You are ready!')),
-      );
+      
+      // Fetch updated challenge data
+      final updatedChallenge = await ChallengeService.fetchChallenge(widget.challengeId);
+      
+      if (mounted) {
+        setState(() {
+          _challenge = updatedChallenge;
+          _challengeFuture = Future.value(updatedChallenge);
+          _isProcessing = false;
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('✅ You are ready!')),
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
-    } finally {
-      if (mounted) setState(() => _isProcessing = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+        setState(() => _isProcessing = false);
+      }
     }
   }
 

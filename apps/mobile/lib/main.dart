@@ -26,6 +26,8 @@ import 'screens/messages_inbox_page.dart';
 import 'screens/court_admin_page.dart';
 import 'screens/referee_dashboard_page.dart';
 import 'screens/referee_profile_page.dart';
+import 'screens/developer_panel_page.dart';
+import 'screens/game_scoring_page.dart';
 import 'widgets/main_shell.dart';
 
 /// M2DGv1 - Mobile (Flutter)
@@ -243,6 +245,19 @@ class _M2DGAppState extends State<M2DGApp> {
                 final userId = state.pathParameters['userId'];
                 return RefereeProfilePage(refereeId: userId);
               },
+            ),
+            GoRoute(
+              path: '/game-scoring/:challengeId',
+              name: 'gameScoring',
+              builder: (context, state) {
+                final challengeId = state.pathParameters['challengeId']!;
+                return GameScoringPage(challengeId: challengeId);
+              },
+            ),
+            GoRoute(
+              path: '/dev-panel',
+              name: 'devPanel',
+              builder: (context, state) => const DeveloperPanelPage(),
             ),
           ],
         ),
