@@ -16,9 +16,9 @@ class _DeveloperPanelPageState extends State<DeveloperPanelPage> {
   Future<void> _createTestReferee() async {
     setState(() => _isLoading = true);
     try {
-      // Create referee account
+      // Create referee account with valid email format
       final authResponse = await supabase.auth.signUp(
-        email: 'referee@test.com',
+        email: 'testreferee123@example.com',
         password: 'referee123',
       );
 
@@ -48,7 +48,7 @@ class _DeveloperPanelPageState extends State<DeveloperPanelPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('✅ Referee created: referee@test.com / referee123'),
+            content: Text('✅ Referee created: testreferee123@example.com / referee123'),
             duration: Duration(seconds: 5),
           ),
         );
@@ -67,9 +67,9 @@ class _DeveloperPanelPageState extends State<DeveloperPanelPage> {
   Future<void> _createTestGameKeeper() async {
     setState(() => _isLoading = true);
     try {
-      // Create game keeper account
+      // Create game keeper account with valid email format
       final authResponse = await supabase.auth.signUp(
-        email: 'gamekeeper@test.com',
+        email: 'testgamekeeper123@example.com',
         password: 'keeper123',
       );
 
@@ -98,7 +98,7 @@ class _DeveloperPanelPageState extends State<DeveloperPanelPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('✅ Game Keeper created: gamekeeper@test.com / keeper123'),
+            content: Text('✅ Game Keeper created: testgamekeeper123@example.com / keeper123'),
             duration: Duration(seconds: 5),
           ),
         );
@@ -205,7 +205,7 @@ class _DeveloperPanelPageState extends State<DeveloperPanelPage> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Email: referee@test.com\nPassword: referee123',
+              'Email: testreferee123@example.com\nPassword: referee123',
               style: tt.bodySmall?.copyWith(
                 color: cs.onSurfaceVariant,
               ),
@@ -230,7 +230,7 @@ class _DeveloperPanelPageState extends State<DeveloperPanelPage> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Email: gamekeeper@test.com\nPassword: keeper123',
+              'Email: testgamekeeper123@example.com\nPassword: keeper123',
               style: tt.bodySmall?.copyWith(
                 color: cs.onSurfaceVariant,
               ),
