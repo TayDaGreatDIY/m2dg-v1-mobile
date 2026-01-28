@@ -32,12 +32,49 @@ class _RefereeCourtsPageState extends State<RefereeCourtsPage> {
       final response = await supabase
           .from('game_sessions')
           .select(
-              'id, court_id, status, team_a_score, team_b_score, started_at, courts(id, name, city, location), game_session_players(user_id, profiles(username, display_name))')
+              'id, court_id, status, team_a_score, team_b_score, started_at, courts(id, name, city, location), game_session_players(user_id)')
           .inFilter('status', ['active', 'in_progress'])
           .order('started_at', ascending: false);
 
+      // Fetch all player profiles to display names
+      final games = (response as List).cast<Map<String, dynamic>>();
+      
+      // Get all unique user IDs from all games
+      final allPlayerIds = <String>{};
+      for (var game in games) {
+        final players = (game['game_session_players'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        for (var player in players) {
+          final userId = player['user_id'] as String?;
+          if (userId != null) allPlayerIds.add(userId);
+        }
+      }
+
+      // Fetch profiles for all players in one query
+      Map<String, Map<String, dynamic>> profilesMap = {};
+      if (allPlayerIds.isNotEmpty) {
+        final profiles = await supabase
+            .from('profiles')
+            .select('user_id, username, display_name')
+            .inFilter('user_id', allPlayerIds.toList());
+        
+        for (var profile in profiles as List) {
+          profilesMap[profile['user_id'] as String] = profile;
+        }
+      }
+
+      // Attach profile data to each game
+      for (var game in games) {
+        final players = (game['game_session_players'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        for (var player in players) {
+          final userId = player['user_id'] as String?;
+          if (userId != null && profilesMap.containsKey(userId)) {
+            player['profile'] = profilesMap[userId];
+          }
+        }
+      }
+
       setState(() {
-        _activeGames = (response as List).cast<Map<String, dynamic>>();
+        _activeGames = games;
         _loading = false;
       });
     } catch (e) {
@@ -158,10 +195,10 @@ class _RefereeCourtsPageState extends State<RefereeCourtsPage> {
             final startedAt = game['started_at'] as String?;
             final players = (game['game_session_players'] as List?)?.cast<Map<String, dynamic>>() ?? [];
 
-            // Extract player names
+            // Extract player names from profiles
             final playerNames = players
                 .map((p) {
-                  final profile = p['profiles'] as Map<String, dynamic>?;
+                  final profile = p['profile'] as Map<String, dynamic>?;
                   return profile?['display_name'] ?? profile?['username'] ?? 'Unknown Player';
                 })
                 .toList();
