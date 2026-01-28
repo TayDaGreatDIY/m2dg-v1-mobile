@@ -28,11 +28,11 @@ class _RefereeCourtsPageState extends State<RefereeCourtsPage> {
         _error = null;
       });
 
-      // Fetch games that are looking for referees or currently active
+      // Fetch active games with court and player information
       final response = await supabase
           .from('game_sessions')
           .select(
-              'id, court_id, status, team_a_score, team_b_score, started_at, courts(id, name, city, location)')
+              'id, court_id, status, team_a_score, team_b_score, started_at, courts(id, name, city, location), game_session_players(user_id, profiles(username, display_name))')
           .inFilter('status', ['active', 'in_progress'])
           .order('started_at', ascending: false);
 
@@ -41,7 +41,7 @@ class _RefereeCourtsPageState extends State<RefereeCourtsPage> {
         _loading = false;
       });
     } catch (e) {
-      print('Error loading active games: $e');
+      print('❌ Error loading active games: $e');
       setState(() {
         _error = 'Error loading games: $e';
         _loading = false;
@@ -131,8 +131,7 @@ class _RefereeCourtsPageState extends State<RefereeCourtsPage> {
           children: [
             Icon(Icons.sports_basketball, size: 64, color: cs.outline),
             const SizedBox(height: 16),
-            Text('No active games looking for referees',
-                style: tt.titleMedium),
+            Text('No active games right now', style: tt.titleMedium),
             const SizedBox(height: 8),
             Text('Check back soon!', style: tt.bodySmall),
           ],
@@ -142,7 +141,7 @@ class _RefereeCourtsPageState extends State<RefereeCourtsPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Courts Looking for Referees'),
+        title: const Text('Active Games'),
         centerTitle: true,
       ),
       body: RefreshIndicator(
@@ -157,6 +156,15 @@ class _RefereeCourtsPageState extends State<RefereeCourtsPage> {
             final team1Score = game['team_a_score'] ?? 0;
             final team2Score = game['team_b_score'] ?? 0;
             final startedAt = game['started_at'] as String?;
+            final players = (game['game_session_players'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+
+            // Extract player names
+            final playerNames = players
+                .map((p) {
+                  final profile = p['profiles'] as Map<String, dynamic>?;
+                  return profile?['display_name'] ?? profile?['username'] ?? 'Unknown Player';
+                })
+                .toList();
 
             return Card(
               margin: const EdgeInsets.only(bottom: 16),
@@ -165,7 +173,7 @@ class _RefereeCourtsPageState extends State<RefereeCourtsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Court name and status
+                    // Court name and location
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -175,31 +183,32 @@ class _RefereeCourtsPageState extends State<RefereeCourtsPage> {
                             children: [
                               Text(
                                 court?['name'] ?? 'Unknown Court',
-                                style: tt.titleSmall,
+                                style: tt.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                               ),
-                              Text(
-                                court?['city'] ?? 'Unknown Location',
-                                style: tt.bodySmall
-                                    ?.copyWith(color: cs.onSurfaceVariant),
+                              Row(
+                                children: [
+                                  Icon(Icons.location_on, size: 14, color: cs.onSurfaceVariant),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    court?['city'] ?? 'Unknown Location',
+                                    style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
-                            color: status == 'waiting_for_referee'
-                                ? Colors.orange[200]
-                                : Colors.green[200],
+                            color: Colors.green[200],
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
-                            status.replaceAll('_', ' ').toUpperCase(),
+                            'LIVE',
                             style: tt.labelSmall?.copyWith(
-                              color: status == 'waiting_for_referee'
-                                  ? Colors.orange[900]
-                                  : Colors.green[900],
+                              color: Colors.green[900],
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ),
@@ -207,88 +216,84 @@ class _RefereeCourtsPageState extends State<RefereeCourtsPage> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Live Score Display
+                    // Players Playing
                     Container(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: cs.surfaceVariant,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Score
-                          Row(
-                            mainAxisAlignment:
-                                MainAxisAlignment.spaceEvenly,
-                            children: [
-                              Column(
-                                children: [
-                                  Text(
-                                    '$team1Score',
-                                    style: tt.displayMedium?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                      color: cs.primary,
-                                    ),
-                                  ),
-                                  Text(
-                                    'Team 1',
-                                    style: tt.bodySmall,
-                                  ),
-                                ],
-                              ),
-                              Text(
-                                'vs',
-                                style: tt.titleMedium,
-                              ),
-                              Column(
-                                children: [
-                                  Text(
-                                    '$team2Score',
-                                    style: tt.displayMedium?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                      color: cs.tertiary,
-                                    ),
-                                  ),
-                                  Text(
-                                    'Team 2',
-                                    style: tt.bodySmall,
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          // Countdown Timer
-                          if (startedAt != null) ...[
-                            const Divider(),
-                            const SizedBox(height: 8),
-                            Row(
-                              mainAxisAlignment:
-                                  MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.timer,
-                                    size: 18, color: cs.primary),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Elapsed: ${_getCountdownTime(startedAt)}',
-                                  style: tt.titleSmall?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
+                          Text('Players', style: tt.labelSmall?.copyWith(fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 8),
+                          if (playerNames.isNotEmpty)
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 4,
+                              children: playerNames.map((name) {
+                                return Chip(
+                                  label: Text(name, style: tt.bodySmall),
+                                  backgroundColor: cs.primary.withValues(alpha: 0.1),
+                                );
+                              }).toList(),
+                            )
+                          else
+                            Text('No players loaded', style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant)),
                         ],
                       ),
                     ),
                     const SizedBox(height: 16),
 
-                    // Action Button
+                    // Score and Timer
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: cs.secondaryContainer,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          // Score
+                          Column(
+                            children: [
+                              Text(
+                                '$team1Score - $team2Score',
+                                style: tt.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                              ),
+                              Text('Current Score', style: tt.labelSmall),
+                            ],
+                          ),
+                          // Time elapsed
+                          if (startedAt != null)
+                            Column(
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(Icons.timer, size: 16, color: cs.primary),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      _getCountdownTime(startedAt),
+                                      style: tt.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                                    ),
+                                  ],
+                                ),
+                                Text('Elapsed', style: tt.labelSmall),
+                              ],
+                            ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Ref Game Button (only action button)
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton.icon(
                         icon: const Icon(Icons.sports_baseball),
-                        label: const Text('Work Game'),
+                        label: const Text('Ref Game'),
                         onPressed: () {
                           _workGame(game['id']);
                         },
