@@ -298,7 +298,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                   style: tt.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                                 ),
                                 Text(
-                                  'Bad Calls',
+                                  'Reviews',
                                   style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
                                 ),
                               ],

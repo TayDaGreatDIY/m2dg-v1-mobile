@@ -36,8 +36,10 @@ class LeaderboardPage extends StatefulWidget {
 class _LeaderboardPageState extends State<LeaderboardPage> {
   bool _loading = true;
   String? _error;
+  String? _userRole;
   
   List<Map<String, dynamic>> _allPlayers = [];
+  List<Map<String, dynamic>> _allReferees = [];
   List<Map<String, dynamic>> _filteredPlayers = [];
   
   LeaderboardSort _sort = LeaderboardSort.winRate;
@@ -49,7 +51,7 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
   @override
   void initState() {
     super.initState();
-    _loadLeaderboard();
+    _loadUserRole();
     _searchCtrl.addListener(_filterPlayers);
   }
 
@@ -59,6 +61,31 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
     super.dispose();
   }
 
+  Future<void> _loadUserRole() async {
+    try {
+      final userId = supabase.auth.currentUser?.id;
+      if (userId == null) {
+        _loadLeaderboard();
+        return;
+      }
+
+      final response = await supabase
+          .from('profiles')
+          .select('user_role')
+          .eq('user_id', userId)
+          .single();
+
+      setState(() {
+        _userRole = response['user_role'] as String?;
+      });
+
+      _loadLeaderboard();
+    } catch (e) {
+      print('Error loading user role: $e');
+      _loadLeaderboard();
+    }
+  }
+
   Future<void> _loadLeaderboard() async {
     try {
       setState(() {
@@ -66,45 +93,81 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
         _error = null;
       });
 
-      // Fetch all player stats
-      final statsResponse = await supabase
-          .from('player_stats')
-          .select('*')
-          .order('total_wins', ascending: false);
+      // Load athlete stats if user is not a referee
+      if (_userRole != 'referee') {
+        final statsResponse = await supabase
+            .from('player_stats')
+            .select('*')
+            .order('total_wins', ascending: false);
 
-      // Fetch all profiles
-      final profilesResponse = await supabase
-          .from('profiles')
-          .select('*');
+        final profilesResponse = await supabase
+            .from('profiles')
+            .select('*');
 
-      // Convert to proper maps
-      final statsList = (statsResponse as List).map((row) {
-        return Map<String, dynamic>.from(row as Map);
-      }).toList();
+        final statsList = (statsResponse as List).map((row) {
+          return Map<String, dynamic>.from(row as Map);
+        }).toList();
 
-      final profilesMap = {
-        for (var p in (profilesResponse as List))
-          (p['user_id'] as String): Map<String, dynamic>.from(p as Map)
-      };
-
-      // Merge stats with profiles
-      final players = statsList.map((stat) {
-        final userId = stat['user_id'] as String;
-        final profile = profilesMap[userId];
-        return {
-          ...stat,
-          'profile': profile,
+        final profilesMap = {
+          for (var p in (profilesResponse as List))
+            (p['user_id'] as String): Map<String, dynamic>.from(p as Map)
         };
-      }).toList();
 
-      setState(() {
-        _allPlayers = players;
-        _skillFilter = 'All';
-        _loading = false;
-      });
+        final players = statsList.map((stat) {
+          final userId = stat['user_id'] as String;
+          final profile = profilesMap[userId];
+          return {
+            ...stat,
+            'profile': profile,
+          };
+        }).toList();
 
-      _filterPlayers();
+        setState(() {
+          _allPlayers = players;
+          _skillFilter = 'All';
+          _loading = false;
+        });
+
+        _filterPlayers();
+      } else {
+        // Load referee stats if user is a referee
+        final refereeResponse = await supabase
+            .from('referee_profiles')
+            .select('*')
+            .order('games_refereed_total', ascending: false);
+
+        final profilesResponse = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('user_role', 'referee');
+
+        final refereeList = (refereeResponse as List).map((row) {
+          return Map<String, dynamic>.from(row as Map);
+        }).toList();
+
+        final profilesMap = {
+          for (var p in (profilesResponse as List))
+            (p['user_id'] as String): Map<String, dynamic>.from(p as Map)
+        };
+
+        final referees = refereeList.map((ref) {
+          final userId = ref['user_id'] as String;
+          final profile = profilesMap[userId];
+          return {
+            ...ref,
+            'profile': profile,
+          };
+        }).toList();
+
+        setState(() {
+          _allReferees = referees;
+          _loading = false;
+        });
+
+        _filterReferees();
+      }
     } catch (e) {
+      print('Error loading leaderboard: $e');
       setState(() {
         _error = 'Failed to load leaderboard: $e';
         _loading = false;
@@ -171,6 +234,30 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
     setState(() => _filteredPlayers = filtered);
   }
 
+  void _filterReferees() {
+    var filtered = List<Map<String, dynamic>>.from(_allReferees);
+
+    // Filter by search
+    final query = _searchCtrl.text.toLowerCase();
+    if (query.isNotEmpty) {
+      filtered = filtered.where((r) {
+        final profile = r['profile'] as Map?;
+        final username = (profile?['username'] as String? ?? '').toLowerCase();
+        final displayName = (profile?['display_name'] as String? ?? '').toLowerCase();
+        return username.contains(query) || displayName.contains(query);
+      }).toList();
+    }
+
+    // Sort by games refereed (descending)
+    filtered.sort((a, b) {
+      final aGames = (a['games_refereed_total'] as int?) ?? 0;
+      final bGames = (b['games_refereed_total'] as int?) ?? 0;
+      return bGames.compareTo(aGames);
+    });
+
+    setState(() => _filteredPlayers = filtered);
+  }
+
   String _getWinRate(Map<String, dynamic> player) {
     final total = (player['total_games'] as int?) ?? 0;
     if (total == 0) return '-';
@@ -228,7 +315,7 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
                               Icon(Icons.people_outline, size: 48, color: cs.onSurfaceVariant),
                               const SizedBox(height: 16),
                               Text(
-                                'No players found',
+                                _userRole == 'referee' ? 'No referees found' : 'No players found',
                                 style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
                               ),
                             ],
@@ -251,44 +338,46 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
                                     ),
                                   ),
                                   const SizedBox(height: 12),
-                                  // Filters and sort row
-                                  Row(
-                                    children: [
-                                      // Skill filter dropdown
-                                      Expanded(
-                                        flex: 1,
-                                        child: DropdownButton<String>(
-                                          isExpanded: true,
-                                          value: _skillFilter ?? 'All',
-                                          items: skillLevels.map((skill) {
-                                            return DropdownMenuItem(value: skill, child: Text(skill));
-                                          }).toList(),
-                                          onChanged: (val) {
-                                            setState(() => _skillFilter = val);
-                                            _filterPlayers();
-                                          },
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      // Sort dropdown
-                                      Expanded(
-                                        flex: 1,
-                                        child: DropdownButton<LeaderboardSort>(
-                                          isExpanded: true,
-                                          value: _sort,
-                                          items: LeaderboardSort.values.map((sort) {
-                                            return DropdownMenuItem(value: sort, child: Text(sort.label));
-                                          }).toList(),
-                                          onChanged: (val) {
-                                            if (val != null) {
-                                              setState(() => _sort = val);
+                                  // Filters and sort row (only for athletes)
+                                  if (_userRole != 'referee') ...[
+                                    Row(
+                                      children: [
+                                        // Skill filter dropdown
+                                        Expanded(
+                                          flex: 1,
+                                          child: DropdownButton<String>(
+                                            isExpanded: true,
+                                            value: _skillFilter ?? 'All',
+                                            items: skillLevels.map((skill) {
+                                              return DropdownMenuItem(value: skill, child: Text(skill));
+                                            }).toList(),
+                                            onChanged: (val) {
+                                              setState(() => _skillFilter = val);
                                               _filterPlayers();
-                                            }
-                                          },
+                                            },
+                                          ),
                                         ),
-                                      ),
-                                    ],
-                                  ),
+                                        const SizedBox(width: 8),
+                                        // Sort dropdown
+                                        Expanded(
+                                          flex: 1,
+                                          child: DropdownButton<LeaderboardSort>(
+                                            isExpanded: true,
+                                            value: _sort,
+                                            items: LeaderboardSort.values.map((sort) {
+                                              return DropdownMenuItem(value: sort, child: Text(sort.label));
+                                            }).toList(),
+                                            onChanged: (val) {
+                                              if (val != null) {
+                                                setState(() => _sort = val);
+                                                _filterPlayers();
+                                              }
+                                            },
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),
@@ -297,16 +386,13 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
                               child: ListView.builder(
                                 itemCount: _filteredPlayers.length,
                                 itemBuilder: (ctx, idx) {
-                                  final player = _filteredPlayers[idx];
-                                  final profile = player['profile'] as Map?;
+                                  final item = _filteredPlayers[idx];
+                                  final profile = item['profile'] as Map?;
                                   final rank = idx + 1;
-                                  final wins = (player['total_wins'] as int?) ?? 0;
-                                  final losses = (player['total_losses'] as int?) ?? 0;
                                   final avatarUrl = profile?['avatar_url'] as String?;
                                   final username = profile?['username'] as String? ?? 'Unknown';
                                   final displayName = profile?['display_name'] as String? ?? '';
-                                  final skillLevel = profile?['skill_level'] as String? ?? '';
-                                  final userId = player['user_id'] as String? ?? '';
+                                  final userId = item['user_id'] as String? ?? '';
 
                                   // Rank badge color
                                   Color rankBgColor;
@@ -325,101 +411,209 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
                                     rankTextColor = cs.onSurface;
                                   }
 
-                                  return GestureDetector(
-                                    onTap: () => _goToPlayerProfile(userId),
-                                    child: Card(
-                                      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(12),
-                                        child: Row(
-                                          children: [
-                                            // Rank badge
-                                            Container(
-                                              width: 44,
-                                              height: 44,
-                                              decoration: BoxDecoration(
-                                                color: rankBgColor,
-                                                shape: BoxShape.circle,
-                                              ),
-                                              child: Center(
-                                                child: Text(
-                                                  '#$rank',
-                                                  style: tt.labelLarge?.copyWith(color: rankTextColor),
+                                  // If referee, show referee stats; otherwise show athlete stats
+                                  if (_userRole == 'referee') {
+                                    final gamesRefereed = (item['games_refereed_total'] as int?) ?? 0;
+                                    final avgRating = (item['average_rating'] as double?) ?? 0.0;
+                                    final yearsExp = (item['years_experience'] as int?) ?? 0;
+
+                                    return GestureDetector(
+                                      onTap: () => _goToPlayerProfile(userId),
+                                      child: Card(
+                                        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(12),
+                                          child: Row(
+                                            children: [
+                                              // Rank badge
+                                              Container(
+                                                width: 44,
+                                                height: 44,
+                                                decoration: BoxDecoration(
+                                                  color: rankBgColor,
+                                                  shape: BoxShape.circle,
+                                                ),
+                                                child: Center(
+                                                  child: Text(
+                                                    '#$rank',
+                                                    style: tt.labelLarge?.copyWith(color: rankTextColor),
+                                                  ),
                                                 ),
                                               ),
-                                            ),
-                                            const SizedBox(width: 12),
-                                            // Avatar + name
-                                            Container(
-                                              width: 40,
-                                              height: 40,
-                                              decoration: BoxDecoration(
-                                                shape: BoxShape.circle,
-                                                color: cs.primary,
-                                                image: avatarUrl != null
-                                                    ? DecorationImage(image: NetworkImage(avatarUrl), fit: BoxFit.cover)
+                                              const SizedBox(width: 12),
+                                              // Avatar + name
+                                              Container(
+                                                width: 40,
+                                                height: 40,
+                                                decoration: BoxDecoration(
+                                                  shape: BoxShape.circle,
+                                                  color: cs.primary,
+                                                  image: avatarUrl != null
+                                                      ? DecorationImage(image: NetworkImage(avatarUrl), fit: BoxFit.cover)
+                                                      : null,
+                                                ),
+                                                child: avatarUrl == null
+                                                    ? Center(
+                                                        child: Text(
+                                                          (displayName.isEmpty ? username : displayName).substring(0, 1).toUpperCase(),
+                                                          style: tt.labelLarge?.copyWith(color: Colors.white),
+                                                        ),
+                                                      )
                                                     : null,
                                               ),
-                                              child: avatarUrl == null
-                                                  ? Center(
-                                                      child: Text(
-                                                        (displayName.isEmpty ? username : displayName).substring(0, 1).toUpperCase(),
-                                                        style: tt.labelLarge?.copyWith(color: Colors.white),
-                                                      ),
-                                                    )
-                                                  : null,
-                                            ),
-                                            const SizedBox(width: 12),
-                                            // Player info
-                                            Expanded(
-                                              child: Column(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(
-                                                    displayName.isNotEmpty ? displayName : username,
-                                                    style: tt.titleSmall,
-                                                    maxLines: 1,
-                                                    overflow: TextOverflow.ellipsis,
-                                                  ),
-                                                  if (displayName.isNotEmpty)
+                                              const SizedBox(width: 12),
+                                              // Referee info
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  children: [
                                                     Text(
-                                                      '@$username',
-                                                      style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                                                      displayName.isNotEmpty ? displayName : username,
+                                                      style: tt.titleSmall,
                                                       maxLines: 1,
                                                       overflow: TextOverflow.ellipsis,
                                                     ),
-                                                  if (skillLevel.isNotEmpty)
-                                                    Text(
-                                                      skillLevel,
-                                                      style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant),
-                                                    ),
+                                                    if (displayName.isNotEmpty)
+                                                      Text(
+                                                        '@$username',
+                                                        style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow.ellipsis,
+                                                      ),
+                                                    if (yearsExp > 0)
+                                                      Text(
+                                                        '$yearsExp years experience',
+                                                        style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant),
+                                                      ),
+                                                  ],
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              // Referee stats
+                                              Column(
+                                                crossAxisAlignment: CrossAxisAlignment.end,
+                                                children: [
+                                                  Text(
+                                                    '$gamesRefereed',
+                                                    style: tt.labelLarge?.copyWith(fontWeight: FontWeight.bold),
+                                                  ),
+                                                  Text(
+                                                    'Games Reffed',
+                                                    style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant),
+                                                  ),
+                                                  Text(
+                                                    '$avgRating/5.0 ⭐',
+                                                    style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant),
+                                                  ),
                                                 ],
                                               ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            // Stats
-                                            Column(
-                                              crossAxisAlignment: CrossAxisAlignment.end,
-                                              children: [
-                                                Text(
-                                                  '$wins-$losses',
-                                                  style: tt.labelLarge?.copyWith(fontWeight: FontWeight.bold),
-                                                ),
-                                                Text(
-                                                  '${_getWinRate(player)} WR',
-                                                  style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant),
-                                                ),
-                                                Text(
-                                                  '${_getPointDiff(player)} PD',
-                                                  style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant),
-                                                ),
-                                              ],
-                                            ),
-                                          ],
+                                            ],
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                  );
+                                    );
+                                  } else {
+                                    // Athlete stats
+                                    final wins = (item['total_wins'] as int?) ?? 0;
+                                    final losses = (item['total_losses'] as int?) ?? 0;
+                                    final skillLevel = profile?['skill_level'] as String? ?? '';
+
+                                    return GestureDetector(
+                                      onTap: () => _goToPlayerProfile(userId),
+                                      child: Card(
+                                        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(12),
+                                          child: Row(
+                                            children: [
+                                              // Rank badge
+                                              Container(
+                                                width: 44,
+                                                height: 44,
+                                                decoration: BoxDecoration(
+                                                  color: rankBgColor,
+                                                  shape: BoxShape.circle,
+                                                ),
+                                                child: Center(
+                                                  child: Text(
+                                                    '#$rank',
+                                                    style: tt.labelLarge?.copyWith(color: rankTextColor),
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              // Avatar + name
+                                              Container(
+                                                width: 40,
+                                                height: 40,
+                                                decoration: BoxDecoration(
+                                                  shape: BoxShape.circle,
+                                                  color: cs.primary,
+                                                  image: avatarUrl != null
+                                                      ? DecorationImage(image: NetworkImage(avatarUrl), fit: BoxFit.cover)
+                                                      : null,
+                                                ),
+                                                child: avatarUrl == null
+                                                    ? Center(
+                                                        child: Text(
+                                                          (displayName.isEmpty ? username : displayName).substring(0, 1).toUpperCase(),
+                                                          style: tt.labelLarge?.copyWith(color: Colors.white),
+                                                        ),
+                                                      )
+                                                    : null,
+                                              ),
+                                              const SizedBox(width: 12),
+                                              // Player info
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(
+                                                      displayName.isNotEmpty ? displayName : username,
+                                                      style: tt.titleSmall,
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
+                                                    if (displayName.isNotEmpty)
+                                                      Text(
+                                                        '@$username',
+                                                        style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow.ellipsis,
+                                                      ),
+                                                    if (skillLevel.isNotEmpty)
+                                                      Text(
+                                                        skillLevel,
+                                                        style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant),
+                                                      ),
+                                                  ],
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              // Stats
+                                              Column(
+                                                crossAxisAlignment: CrossAxisAlignment.end,
+                                                children: [
+                                                  Text(
+                                                    '$wins-$losses',
+                                                    style: tt.labelLarge?.copyWith(fontWeight: FontWeight.bold),
+                                                  ),
+                                                  Text(
+                                                    '${_getWinRate(item)} WR',
+                                                    style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant),
+                                                  ),
+                                                  Text(
+                                                    '${_getPointDiff(item)} PD',
+                                                    style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  }
                                 },
                               ),
                             ),
