@@ -51,8 +51,12 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
   @override
   void initState() {
     super.initState();
-    _loadUserRole();
     _searchCtrl.addListener(_filterPlayers);
+    _initializeLeaderboard();
+  }
+
+  Future<void> _initializeLeaderboard() async {
+    await _loadUserRole();
   }
 
   @override
