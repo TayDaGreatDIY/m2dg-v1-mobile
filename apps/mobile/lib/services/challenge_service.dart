@@ -321,6 +321,57 @@ class ChallengeService {
           .update({'referee_requested': true})
           .eq('id', challengeId);
 
+      // Get the challenge details to fetch court and player info
+      final challenge = await supabase
+          .from('challenges')
+          .select('court_id, creator_id')
+          .eq('id', challengeId)
+          .single();
+
+      final courtId = challenge['court_id'] as String?;
+      final creatorId = challenge['creator_id'] as String?;
+
+      // Get court name
+      final court = await supabase
+          .from('courts')
+          .select('name')
+          .eq('id', courtId)
+          .single();
+      final courtName = court['name'] as String? ?? 'Unknown Court';
+
+      // For now, send notification to test referee (hardcoded for demo)
+      // In production, this would send to all available referees
+      const testRefereeId = 'test-referee-id'; // This is a placeholder
+      
+      // Try to find a test referee account from the database
+      try {
+        final referees = await supabase
+            .from('profiles')
+            .select('user_id')
+            .eq('user_role', 'referee')
+            .limit(1);
+        
+        if (referees.isNotEmpty) {
+          final refereeUserId = referees[0]['user_id'] as String;
+          
+          // Send notification
+          await supabase.from('notifications').insert({
+            'user_id': refereeUserId,
+            'type': 'referee_request',
+            'title': '🏀 Referee Needed at $courtName',
+            'message': 'A game is ready and needs a referee. Accept to ref the game!',
+            'data': {
+              'challenge_id': challengeId,
+              'court_id': courtId,
+              'court_name': courtName,
+            },
+          });
+        }
+      } catch (e) {
+        print('Note: Could not send referee notification - $e');
+        // Don't fail the request if notification fails
+      }
+
       print('✅ Referee requested for challenge: $challengeId');
     } catch (e) {
       print('❌ Error requesting referee: $e');

@@ -442,8 +442,12 @@ class _GameWaitingPageState extends State<GameWaitingPage> {
                   else
                     FilledButton.icon(
                       onPressed: null,
-                      icon: const Icon(Icons.check_circle),
-                      label: const Text('Ready ✓'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                      ),
+                      icon: const Icon(Icons.sports_basketball),
+                      label: const Text('Ready'),
                     ),
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
