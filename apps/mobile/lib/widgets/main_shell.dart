@@ -130,6 +130,19 @@ class _MainShellState extends State<MainShell> {
 
   @override
   Widget build(BuildContext context) {
+    // If role is still loading, show a loading indicator
+    if (_loadingRole) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('M2DG'),
+          centerTitle: true,
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     final isReferee = _userRole == 'referee';
 
     // Update selected index based on current route

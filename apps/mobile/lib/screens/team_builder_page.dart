@@ -267,11 +267,13 @@ class _TeamBuilderPageState extends State<TeamBuilderPage> with TickerProviderSt
                         selectedGameType == '5v5' ? 5 : 3,
                         selectedPlayers,
                       );
-                      setDialogState(() {
-                        selectedPlayers = result;
-                        // Update player names map for display
-                        playerNames.clear();
-                      });
+                      // Only update if dialog returned non-empty result
+                      if (result.isNotEmpty || result.isEmpty && selectedPlayers.isNotEmpty) {
+                        setDialogState(() {
+                          selectedPlayers = result;
+                          playerNames.clear();
+                        });
+                      }
                     },
                     icon: const Icon(Icons.person_add),
                     label: Text('Choose ${selectedGameType == "5v5" ? 5 : 3} Players'),
