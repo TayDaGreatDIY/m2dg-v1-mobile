@@ -113,16 +113,38 @@ class _RefereeCourtsPageState extends State<RefereeCourtsPage> {
         return;
       }
 
-      // Update the game_sessions table with the current user as assigned_referee_id
+      // Find the challenge associated with this game_session
+      final game = _activeGames.firstWhere((g) => g['id'] == gameId, orElse: () => {});
+      if (game.isEmpty) {
+        throw Exception('Game not found');
+      }
+
+      final courtId = game['court_id'];
+      
+      // Find any open/active challenge for this court
+      final challenges = await supabase
+          .from('challenges')
+          .select()
+          .eq('court_id', courtId)
+          .inFilter('status', ['open', 'accepted']);
+
+      if (challenges.isEmpty) {
+        throw Exception('No active challenge found for this game');
+      }
+
+      final challengeId = challenges[0]['id'];
+
+      // Update the challenge with the referee assignment
       await supabase
-          .from('game_sessions')
+          .from('challenges')
           .update({'assigned_referee_id': userId})
-          .eq('id', gameId);
+          .eq('id', challengeId);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Successfully joined as referee!'),
+          content: Text('✓ You are now reffing this game!'),
+          backgroundColor: Colors.green,
           duration: Duration(seconds: 2),
         ),
       );
@@ -135,6 +157,40 @@ class _RefereeCourtsPageState extends State<RefereeCourtsPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error joining game: $e')),
       );
+    }
+  }
+
+  Future<String?> _getAssignedRefereeName(String gameId) async {
+    try {
+      final game = _activeGames.firstWhere((g) => g['id'] == gameId, orElse: () => {});
+      if (game.isEmpty) return null;
+
+      final courtId = game['court_id'];
+      
+      // Find challenge for this court
+      final challenges = await supabase
+          .from('challenges')
+          .select('assigned_referee_id')
+          .eq('court_id', courtId)
+          .inFilter('status', ['open', 'accepted']);
+
+      if (challenges.isEmpty || challenges[0]['assigned_referee_id'] == null) {
+        return null;
+      }
+
+      final refereeId = challenges[0]['assigned_referee_id'] as String;
+      
+      // Get referee profile
+      final profile = await supabase
+          .from('profiles')
+          .select('username')
+          .eq('user_id', refereeId)
+          .single();
+
+      return profile['username'] as String?;
+    } catch (e) {
+      print('Error getting referee name: $e');
+      return null;
     }
   }
 
@@ -330,12 +386,33 @@ class _RefereeCourtsPageState extends State<RefereeCourtsPage> {
                     // Ref Game Button (only action button)
                     SizedBox(
                       width: double.infinity,
-                      child: FilledButton.icon(
-                        icon: const Icon(Icons.sports_basketball),
-                        label: const Text('Ref Game'),
-                        onPressed: () {
-                          _workGame(game['id']);
-                        },
+                      child: Column(
+                        children: [
+                          FilledButton.icon(
+                            icon: const Icon(Icons.sports_basketball),
+                            label: const Text('Ref Game'),
+                            onPressed: game['assigned_referee_id'] == null ? () {
+                              _workGame(game['id']);
+                            } : null,
+                          ),
+                          if (game['assigned_referee_id'] != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8.0),
+                              child: FutureBuilder<String?>(
+                                future: _getAssignedRefereeName(game['id']),
+                                builder: (context, snapshot) {
+                                  final refName = snapshot.data ?? 'Unknown';
+                                  return Text(
+                                    'Ref: $refName',
+                                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                      color: Colors.green,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                   ],

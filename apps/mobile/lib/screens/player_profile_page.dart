@@ -40,19 +40,23 @@ class _PlayerProfilePageState extends State<PlayerProfilePage> {
         _error = null;
       });
 
-      // Load profile
+      // Load profile - use maybeSingle to handle missing profiles
       final profileData = await supabase
           .from('profiles')
           .select('*')
           .eq('user_id', widget.userId)
-          .single();
+          .maybeSingle();
 
-      // Load player stats
+      if (profileData == null) {
+        throw Exception('Profile not found for this user');
+      }
+
+      // Load player stats - use maybeSingle to handle missing stats
       final statsData = await supabase
           .from('player_stats')
           .select('*')
           .eq('user_id', widget.userId)
-          .single();
+          .maybeSingle();
 
       // Load home court if exists
       Map<String, dynamic>? courtData;

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:mobile/models/referee_profile.dart';
 import 'package:mobile/services/referee_service.dart';
@@ -312,6 +313,34 @@ class _RefereeProfilePageState extends State<RefereeProfilePage> {
                   ),
                 if (profile.socialMediaLinks != null && profile.socialMediaLinks!.isNotEmpty)
                   const SizedBox(height: 24),
+
+                // Action Buttons (Friends & Social)
+                if (widget.refereeId != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Send Message Button
+                        FilledButton.icon(
+                          icon: const Icon(Icons.message),
+                          label: const Text('Send Message'),
+                          onPressed: () {
+                            context.push('/messages/${widget.refereeId}');
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        // Friends Button
+                        OutlinedButton.icon(
+                          icon: const Icon(Icons.person_add),
+                          label: const Text('Add Friend'),
+                          onPressed: () {
+                            context.go('/social');
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
 
                 const SizedBox(height: 24),
               ],
