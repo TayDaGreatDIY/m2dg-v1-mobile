@@ -162,6 +162,12 @@ class _NotificationsPageState extends State<NotificationsPage> {
         return Colors.green;
       case 'friend_request':
         return Colors.purple;
+      case 'referee_request':
+        return Colors.orange;
+      case 'referee_accepted':
+        return Colors.green;
+      case 'referee_declined':
+        return Colors.red;
       default:
         return Colors.grey;
     }
@@ -175,6 +181,12 @@ class _NotificationsPageState extends State<NotificationsPage> {
         return Icons.sports_basketball;
       case 'friend_request':
         return Icons.person_add;
+      case 'referee_request':
+        return Icons.gavel;
+      case 'referee_accepted':
+        return Icons.check_circle;
+      case 'referee_declined':
+        return Icons.cancel;
       default:
         return Icons.notifications;
     }
@@ -208,6 +220,13 @@ class _NotificationsPageState extends State<NotificationsPage> {
       case 'challenge':
         // Navigate to challenges page
         context.go('/challenges');
+        break;
+      case 'referee_request':
+        // Navigate to referee acceptance page with challenge ID
+        if (notification.data != null && notification.data!.containsKey('challenge_id')) {
+          final challengeId = notification.data!['challenge_id'] as String;
+          context.push('/referee-acceptance/$challengeId', extra: notification.data);
+        }
         break;
       case 'game_result':
         // Navigate to leaderboard

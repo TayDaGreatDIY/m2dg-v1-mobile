@@ -332,12 +332,15 @@ class ChallengeService {
       final creatorId = challenge['creator_id'] as String?;
 
       // Get court name
-      final court = await supabase
-          .from('courts')
-          .select('name')
-          .eq('id', courtId)
-          .single();
-      final courtName = court['name'] as String? ?? 'Unknown Court';
+      String courtName = 'Unknown Court';
+      if (courtId != null) {
+        final court = await supabase
+            .from('courts')
+            .select('name')
+            .eq('id', courtId)
+            .single();
+        courtName = court['name'] as String? ?? 'Unknown Court';
+      }
 
       // For now, send notification to test referee (hardcoded for demo)
       // In production, this would send to all available referees
@@ -541,6 +544,114 @@ class ChallengeService {
     } catch (e) {
       print('❌ Error recording forfeit: $e');
       throw Exception('Failed to record forfeit: $e');
+    }
+  }
+
+  /// Accept referee request for a challenge
+  static Future<void> acceptRefereRequest(String challengeId) async {
+    try {
+      final currentUser = supabase.auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Update challenge to mark referee as accepted
+      await supabase
+          .from('challenges')
+          .update({
+            'referee_id': currentUser.id,
+            'referee_accepted': true,
+          })
+          .eq('id', challengeId);
+
+      // Fetch challenge to get creator and opponent IDs
+      final challenge = await fetchChallenge(challengeId);
+
+      // Send notifications to both players that referee accepted
+      final notificationService = supabase;
+      
+      // Notification to creator
+      await notificationService
+          .from('notifications')
+          .insert({
+            'user_id': challenge.creatorId,
+            'type': 'referee_accepted',
+            'title': '✓ Referee Ready',
+            'message': 'Referee has been assigned to your game',
+            'data': {
+              'challenge_id': challengeId,
+              'referee_id': currentUser.id,
+            },
+          });
+
+      // Notification to opponent
+      await notificationService
+          .from('notifications')
+          .insert({
+            'user_id': challenge.opponentId,
+            'type': 'referee_accepted',
+            'title': '✓ Referee Ready',
+            'message': 'Referee has been assigned to your game',
+            'data': {
+              'challenge_id': challengeId,
+              'referee_id': currentUser.id,
+            },
+          });
+
+      print('✅ Referee accepted challenge: $challengeId');
+    } catch (e) {
+      print('❌ Error accepting referee request: $e');
+      rethrow;
+    }
+  }
+
+  /// Decline referee request for a challenge
+  static Future<void> declineRefereRequest(String challengeId) async {
+    try {
+      // Fetch challenge to get creator and opponent IDs
+      final challenge = await fetchChallenge(challengeId);
+
+      // Clear referee request
+      await supabase
+          .from('challenges')
+          .update({
+            'referee_requested': false,
+          })
+          .eq('id', challengeId);
+
+      // Send notifications to both players that referee declined
+      final notificationService = supabase;
+      
+      // Notification to creator
+      await notificationService
+          .from('notifications')
+          .insert({
+            'user_id': challenge.creatorId,
+            'type': 'referee_declined',
+            'title': '✗ Referee Unavailable',
+            'message': 'Referee declined. Please request another referee.',
+            'data': {
+              'challenge_id': challengeId,
+            },
+          });
+
+      // Notification to opponent
+      await notificationService
+          .from('notifications')
+          .insert({
+            'user_id': challenge.opponentId,
+            'type': 'referee_declined',
+            'title': '✗ Referee Unavailable',
+            'message': 'Referee declined. Please request another referee.',
+            'data': {
+              'challenge_id': challengeId,
+            },
+          });
+
+      print('✅ Referee declined challenge: $challengeId');
+    } catch (e) {
+      print('❌ Error declining referee request: $e');
+      rethrow;
     }
   }
 }
