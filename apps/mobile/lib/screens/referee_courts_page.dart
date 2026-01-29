@@ -74,6 +74,33 @@ class _RefereeCourtsPageState extends State<RefereeCourtsPage> {
         }
       }
 
+      // Fetch referee info for each game
+      for (var game in games) {
+        final courtId = game['court_id'];
+        try {
+          final challenges = await supabase
+              .from('challenges')
+              .select('assigned_referee_id')
+              .eq('court_id', courtId)
+              .inFilter('status', ['open', 'accepted'])
+              .limit(1);
+
+          if (challenges.isNotEmpty && challenges[0]['assigned_referee_id'] != null) {
+            final refereeId = challenges[0]['assigned_referee_id'] as String;
+            final refProfile = await supabase
+                .from('profiles')
+                .select('username')
+                .eq('user_id', refereeId)
+                .maybeSingle();
+            
+            game['assigned_referee_id'] = refereeId;
+            game['referee_username'] = refProfile?['username'] ?? 'Unknown';
+          }
+        } catch (e) {
+          print('Error fetching referee info: $e');
+        }
+      }
+
       setState(() {
         _activeGames = games;
         _loading = false;
@@ -113,12 +140,13 @@ class _RefereeCourtsPageState extends State<RefereeCourtsPage> {
         return;
       }
 
-      // Find the challenge associated with this game_session
-      final game = _activeGames.firstWhere((g) => g['id'] == gameId, orElse: () => {});
-      if (game.isEmpty) {
+      // Find the game index
+      final gameIndex = _activeGames.indexWhere((g) => g['id'] == gameId);
+      if (gameIndex == -1) {
         throw Exception('Game not found');
       }
 
+      final game = _activeGames[gameIndex];
       final courtId = game['court_id'];
       
       // Find any open/active challenge for this court
@@ -140,17 +168,28 @@ class _RefereeCourtsPageState extends State<RefereeCourtsPage> {
           .update({'assigned_referee_id': userId})
           .eq('id', challengeId);
 
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✓ You are now reffing this game!'),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 2),
-        ),
-      );
+      // Get current user profile for username
+      final userProfile = await supabase
+          .from('profiles')
+          .select('username')
+          .eq('user_id', userId)
+          .maybeSingle();
 
-      // Reload the list to reflect changes
-      _loadActiveGames();
+      // Update the local game object immediately for UI
+      if (mounted) {
+        setState(() {
+          _activeGames[gameIndex]['assigned_referee_id'] = userId;
+          _activeGames[gameIndex]['referee_username'] = userProfile?['username'] ?? 'Unknown';
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✓ You are now reffing this game!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
     } catch (e) {
       print('Error joining as referee: $e');
       if (!mounted) return;
@@ -398,18 +437,49 @@ class _RefereeCourtsPageState extends State<RefereeCourtsPage> {
                           if (game['assigned_referee_id'] != null)
                             Padding(
                               padding: const EdgeInsets.only(top: 8.0),
-                              child: FutureBuilder<String?>(
-                                future: _getAssignedRefereeName(game['id']),
-                                builder: (context, snapshot) {
-                                  final refName = snapshot.data ?? 'Unknown';
-                                  return Text(
-                                    'Ref: $refName',
+                              child: Column(
+                                children: [
+                                  Text(
+                                    'Ref Assigned',
                                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                      color: Colors.green,
-                                      fontWeight: FontWeight.w500,
+                                      color: Colors.grey,
                                     ),
-                                  );
-                                },
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Container(
+                                          width: 24,
+                                          height: 24,
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius: BorderRadius.circular(4),
+                                          ),
+                                          child: Center(
+                                            child: Text(
+                                              '👕',
+                                              style: TextStyle(fontSize: 12),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          game['referee_username'] ?? 'Unknown',
+                                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                         ],
