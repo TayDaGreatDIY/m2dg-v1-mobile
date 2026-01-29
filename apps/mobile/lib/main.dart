@@ -270,11 +270,11 @@ class _M2DGAppState extends State<M2DGApp> {
               },
             ),
             GoRoute(
-              path: '/game-scoring/:challengeId',
+              path: '/game-scoring/:gameId',
               name: 'gameScoring',
               builder: (context, state) {
-                final challengeId = state.pathParameters['challengeId']!;
-                return GameScoringPage(challengeId: challengeId);
+                final gameId = state.pathParameters['gameId']!;
+                return GameScoringPage(gameId: gameId);
               },
             ),
             GoRoute(
@@ -390,8 +390,33 @@ class _M2DGAppState extends State<M2DGApp> {
       title: 'M2DG',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepOrange),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.orange,
+          brightness: Brightness.light,
+        ),
         useMaterial3: true,
+        appBarTheme: AppBarTheme(
+          backgroundColor: Color(0xFF1F1F1F),
+          foregroundColor: Colors.white,
+          elevation: 0,
+          centerTitle: true,
+        ),
+        cardTheme: CardThemeData(
+          elevation: 2,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+        filledButtonTheme: FilledButtonThemeData(
+          style: FilledButton.styleFrom(
+            padding: EdgeInsets.symmetric(vertical: 14, horizontal: 24),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        ),
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButton.styleFrom(
+            padding: EdgeInsets.symmetric(vertical: 14, horizontal: 24),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        ),
       ),
       routerConfig: _router,
     );

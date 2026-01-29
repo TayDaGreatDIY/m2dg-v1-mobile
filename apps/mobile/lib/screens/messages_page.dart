@@ -123,7 +123,7 @@ class _MessagesPageState extends State<MessagesPage> {
       await supabase
           .from('messages')
           .update({'read_at': DateTime.now().toIso8601String()})
-          .eq('receiver_id', userId)
+          .eq('recipient_id', userId)
           .eq('sender_id', widget.recipientId)
           .isFilter('read_at', null);
     } catch (e) {
