@@ -87,16 +87,17 @@ class _RefereeCourtsPageState extends State<RefereeCourtsPage> {
   }
 
   String _getCountdownTime(String? startedAt) {
-    if (startedAt == null) return '--:--';
+    if (startedAt == null) return '--:--:--';
     try {
       final gameTime = DateTime.parse(startedAt);
       final now = DateTime.now();
       final elapsed = now.difference(gameTime);
-      final minutes = elapsed.inMinutes;
+      final hours = elapsed.inHours;
+      final minutes = elapsed.inMinutes % 60;
       final seconds = (elapsed.inSeconds % 60);
-      return '$minutes:${seconds.toString().padLeft(2, '0')}';
+      return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
     } catch (e) {
-      return '--:--';
+      return '--:--:--';
     }
   }
 
@@ -329,7 +330,7 @@ class _RefereeCourtsPageState extends State<RefereeCourtsPage> {
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton.icon(
-                        icon: const Icon(Icons.sports_baseball),
+                        icon: const Icon(Icons.sports_basketball),
                         label: const Text('Ref Game'),
                         onPressed: () {
                           _workGame(game['id']);

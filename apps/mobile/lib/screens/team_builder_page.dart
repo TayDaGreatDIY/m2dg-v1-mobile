@@ -97,12 +97,13 @@ class _TeamBuilderPageState extends State<TeamBuilderPage> with TickerProviderSt
 
       if (!mounted) return;
 
+      // Move selectedUserIds outside the builder so it persists
+      final selectedUserIds = <String>[];
+
       showDialog(
         context: context,
         builder: (context) => StatefulBuilder(
           builder: (context, setDialogState) {
-            List<String> selectedUserIds = [];
-
             return AlertDialog(
               title: const Text('🔧 DEV: Add Test Friends'),
               content: SizedBox(
@@ -155,20 +156,28 @@ class _TeamBuilderPageState extends State<TeamBuilderPage> with TickerProviderSt
                   onPressed: selectedUserIds.isNotEmpty
                       ? () async {
                           try {
+                            int addedCount = 0;
                             // Create friendships for each selected user
                             for (var friendId in selectedUserIds) {
-                              await supabase.from('friendships').insert({
-                                'user_id': userId,
-                                'friend_id': friendId,
-                                'status': 'accepted', // Auto-accept for testing
-                              });
+                              try {
+                                // Use upsert to avoid duplicate key errors
+                                await supabase.from('friendships').upsert({
+                                  'user_id': userId,
+                                  'friend_id': friendId,
+                                  'status': 'accepted', // Auto-accept for testing
+                                });
+                                addedCount++;
+                              } catch (e) {
+                                print('Friendship insert error for $friendId: $e');
+                                // Continue with next user if this one fails
+                              }
                             }
 
                             if (!mounted) return;
                             Navigator.pop(context);
                             
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('✅ Added ${selectedUserIds.length} test friends')),
+                              SnackBar(content: Text('✅ Added $addedCount test friends')),
                             );
 
                             // Refresh the teams/friends if needed
@@ -176,6 +185,7 @@ class _TeamBuilderPageState extends State<TeamBuilderPage> with TickerProviderSt
                             _loadAllTeams();
                           } catch (e) {
                             if (!mounted) return;
+                            print('Add test friends error: $e');
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(content: Text('Error: $e')),
                             );
@@ -198,6 +208,7 @@ class _TeamBuilderPageState extends State<TeamBuilderPage> with TickerProviderSt
     final teamNameController = TextEditingController();
     String selectedGameType = '5v5';
     List<String> selectedPlayers = [];
+    Map<String, String> playerNames = {}; // Store player names for display
 
     showDialog(
       context: context,
@@ -252,11 +263,15 @@ class _TeamBuilderPageState extends State<TeamBuilderPage> with TickerProviderSt
                   const SizedBox(height: 8),
                   ElevatedButton.icon(
                     onPressed: () async {
-                      final players = await _showPlayerSelectionDialog(
+                      final result = await _showPlayerSelectionDialog(
                         selectedGameType == '5v5' ? 5 : 3,
                         selectedPlayers,
                       );
-                      setDialogState(() => selectedPlayers = players);
+                      setDialogState(() {
+                        selectedPlayers = result;
+                        // Update player names map for display
+                        playerNames.clear();
+                      });
                     },
                     icon: const Icon(Icons.person_add),
                     label: Text('Choose ${selectedGameType == "5v5" ? 5 : 3} Players'),
@@ -267,7 +282,7 @@ class _TeamBuilderPageState extends State<TeamBuilderPage> with TickerProviderSt
                       spacing: 8,
                       children: selectedPlayers.map((playerId) {
                         return Chip(
-                          label: Text('Player'),
+                          label: Text('Player $playerId'.substring(0, 8)),
                           onDeleted: () => setDialogState(
                             () => selectedPlayers.removeWhere((p) => p == playerId),
                           ),
@@ -292,12 +307,17 @@ class _TeamBuilderPageState extends State<TeamBuilderPage> with TickerProviderSt
                           gameType: selectedGameType,
                           playerIds: selectedPlayers,
                         );
+                        if (!mounted) return;
                         Navigator.pop(context);
-                        _loadUserTeams();
+                        await _loadUserTeams();
+                        // Switch to "My Teams" tab to show the newly created team
+                        _tabController.animateTo(0);
+                        if (!mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text('✅ Team created!')),
                         );
                       } catch (e) {
+                        if (!mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(content: Text('❌ Error: $e')),
                         );
