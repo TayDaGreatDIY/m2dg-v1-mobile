@@ -334,31 +334,31 @@ class _M2DGAppState extends State<M2DGApp> {
           
           // If user HAS completed orientation, don't show onboarding
           if (orientationCompleted && (isOnboarding || isProfileSetup)) {
-            print('🔐 User oriented but on setup page, redirecting based on role');
+            print('🔐 User oriented, redirecting based on role: $userRole');
             // Redirect to appropriate home page based on role
             return userRole == 'referee' ? '/referee-courts' : '/';
           }
           
           // If referee is trying to access athlete courts page, redirect to referee courts
           if (userRole == 'referee' && location == '/') {
-            print('🔐 Referee on athlete page, redirecting to /referee-courts');
+            print('🔐 Referee accessing /, redirecting to /referee-courts');
             return '/referee-courts';
           }
           
           // If athlete is trying to access referee pages, redirect to athlete courts
-          if (userRole == 'athlete' && location == '/referee-courts') {
-            print('🔐 Athlete on referee page, redirecting to /');
+          if (userRole != 'referee' && location == '/referee-courts') {
+            print('🔐 Non-referee accessing /referee-courts, redirecting to /');
             return '/';
           }
         } catch (e) {
-          print('🔐 Error checking orientation: $e');
+          print('🔐 Error checking orientation/role: $e');
           // If error, check if user needs profile setup
           if (!isProfileSetup && !isOnboarding) {
             return '/profile-setup';
           }
         }
 
-        print('🔐 User exists, allowing access to current page');
+        print('🔐 User exists, allowing access to current page: $location');
         return null;
       },
     );

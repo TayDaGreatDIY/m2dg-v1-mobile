@@ -18,6 +18,7 @@ class _RefereeCourtsPageState extends State<RefereeCourtsPage> {
   @override
   void initState() {
     super.initState();
+    print('🎮 RefereeCourtsPage initState - referee view loaded');
     _loadActiveGames();
   }
 

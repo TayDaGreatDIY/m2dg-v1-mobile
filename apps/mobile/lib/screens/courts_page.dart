@@ -72,6 +72,7 @@ class _CourtsPageState extends State<CourtsPage> {
   @override
   void initState() {
     super.initState();
+    print('🏀 CourtsPage initState - athlete view loaded');
     _searchCtrl.addListener(() {
       if (!mounted) return;
       setState(() {});
