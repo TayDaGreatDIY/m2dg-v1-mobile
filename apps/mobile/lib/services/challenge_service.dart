@@ -555,12 +555,11 @@ class ChallengeService {
         throw Exception('User not authenticated');
       }
 
-      // Update challenge to mark referee as accepted
+      // Update challenge to assign the referee
       await supabase
           .from('challenges')
           .update({
-            'referee_id': currentUser.id,
-            'referee_accepted': true,
+            'assigned_referee_id': currentUser.id,
           })
           .eq('id', challengeId);
 
@@ -577,7 +576,7 @@ class ChallengeService {
             'user_id': challenge.creatorId,
             'type': 'referee_accepted',
             'title': '✓ Referee Ready',
-            'message': 'Referee has been assigned to your game',
+            'message': 'Referee is ready to start the game',
             'data': {
               'challenge_id': challengeId,
               'referee_id': currentUser.id,
@@ -591,7 +590,7 @@ class ChallengeService {
             'user_id': challenge.opponentId,
             'type': 'referee_accepted',
             'title': '✓ Referee Ready',
-            'message': 'Referee has been assigned to your game',
+            'message': 'Referee is ready to start the game',
             'data': {
               'challenge_id': challengeId,
               'referee_id': currentUser.id,

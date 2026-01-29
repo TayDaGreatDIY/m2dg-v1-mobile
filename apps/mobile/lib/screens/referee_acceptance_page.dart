@@ -52,7 +52,7 @@ class _RefereeAcceptancePageState extends State<RefereeAcceptancePage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✓ Referee acceptance confirmed!'),
+            content: Text('✓ You are now reffing this game!'),
             backgroundColor: Colors.green,
             duration: Duration(seconds: 2),
           ),
