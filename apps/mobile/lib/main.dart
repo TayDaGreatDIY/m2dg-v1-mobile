@@ -313,16 +313,18 @@ class _M2DGAppState extends State<M2DGApp> {
           return '/';
         }
 
-        // User exists: check orientation status
+        // User exists: check orientation status and user role
         try {
           final profile = await supabase
               .from('profiles')
-              .select('orientation_completed')
+              .select('orientation_completed, user_role')
               .eq('user_id', user.id)
               .single();
           
           final orientationCompleted = profile['orientation_completed'] as bool? ?? false;
-          print('🔐 Orientation completed: $orientationCompleted, on page: $location');
+          final userRole = profile['user_role'] as String? ?? 'athlete';
+          
+          print('🔐 Orientation completed: $orientationCompleted, user_role: $userRole, on page: $location');
           
           // If user hasn't completed orientation and not already there, send them there
           if (!orientationCompleted && !isOnboarding && !isProfileSetup) {
@@ -332,7 +334,20 @@ class _M2DGAppState extends State<M2DGApp> {
           
           // If user HAS completed orientation, don't show onboarding
           if (orientationCompleted && (isOnboarding || isProfileSetup)) {
-            print('🔐 User oriented but on setup page, redirecting to /');
+            print('🔐 User oriented but on setup page, redirecting based on role');
+            // Redirect to appropriate home page based on role
+            return userRole == 'referee' ? '/referee-courts' : '/';
+          }
+          
+          // If referee is trying to access athlete courts page, redirect to referee courts
+          if (userRole == 'referee' && location == '/') {
+            print('🔐 Referee on athlete page, redirecting to /referee-courts');
+            return '/referee-courts';
+          }
+          
+          // If athlete is trying to access referee pages, redirect to athlete courts
+          if (userRole == 'athlete' && location == '/referee-courts') {
+            print('🔐 Athlete on referee page, redirecting to /');
             return '/';
           }
         } catch (e) {
