@@ -368,8 +368,6 @@ class _CourtsPageState extends State<CourtsPage> {
   }
 
   Future<void> _checkInFromList(Map<String, dynamic> c) async {
-    if (_checkingIn) return;
-
     final id = _courtId(c);
     if (id.isEmpty) {
       _toast('Court missing id.');
@@ -389,31 +387,23 @@ class _CourtsPageState extends State<CourtsPage> {
       return;
     }
 
-    setState(() => _checkingIn = true);
+    final name = _courtName(c);
 
-    try {
-      final result = await _svc.checkIn(
-        courtId: id,
-        courtLat: lat,
-        courtLng: lng,
-        radiusMeters: radius,
-        debugPinToCourtCoords: _debugPinToCourtCoords,
-      );
+    // Navigate to check-in page
+    final result = await context.pushNamed(
+      'checkIn',
+      extra: {
+        'courtId': id,
+        'courtLat': lat,
+        'courtLng': lng,
+        'radiusMeters': radius,
+        'courtName': name,
+      },
+    );
 
-      if (!mounted) return;
-
-      _toast(result.message);
-
-      if (result.lastCheckinUtc != null) {
-        _lastCheckinUtcByCourtId[id] = result.lastCheckinUtc!;
-        _ensureTicker();
-        setState(() {});
-      }
-    } catch (e) {
-      if (!mounted) return;
-      _toast('Check-in failed: $e');
-    } finally {
-      if (mounted) setState(() => _checkingIn = false);
+    // If check-in was successful, refresh the court data
+    if (result == true) {
+      _loadAll();
     }
   }
 
