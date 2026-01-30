@@ -18,6 +18,8 @@ class Challenge {
   final bool opponentReady;
   final bool refereeRequested;
   final String? assignedRefereeId;
+  final double? prizeAmount;
+  final String? description;
 
   Challenge({
     required this.id,
@@ -39,6 +41,8 @@ class Challenge {
     this.opponentReady = false,
     this.refereeRequested = false,
     this.assignedRefereeId,
+    this.prizeAmount,
+    this.description,
   });
 
   factory Challenge.fromJson(Map<String, dynamic> json) {
@@ -70,6 +74,10 @@ class Challenge {
       opponentReady: json['opponent_ready'] as bool? ?? false,
       refereeRequested: json['referee_requested'] as bool? ?? false,
       assignedRefereeId: json['assigned_referee_id'] as String?,
+      prizeAmount: json['prize_amount'] != null
+          ? double.tryParse(json['prize_amount'].toString())
+          : null,
+      description: json['description'] as String?,
     );
   }
 
@@ -93,5 +101,7 @@ class Challenge {
     'opponent_ready': opponentReady,
     'referee_requested': refereeRequested,
     'assigned_referee_id': assignedRefereeId,
+    'prize_amount': prizeAmount,
+    'description': description,
   };
 }

@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:mobile/models/challenge.dart';
 import 'package:mobile/services/challenge_service.dart';
+import 'package:mobile/widgets/challenge_card.dart';
 
 final supabase = Supabase.instance.client;
 
@@ -16,11 +17,19 @@ class ChallengesPage extends StatefulWidget {
 class _ChallengesPageState extends State<ChallengesPage> {
   String _selectedTab = 'available'; // 'available', 'my', 'completed'
   late Future<List<Challenge>> _challengesFuture;
+  late Future<List<Challenge>> _hotChallengesFuture;
 
   @override
   void initState() {
     super.initState();
     _loadChallenges();
+    _hotChallengesFuture = ChallengeService.fetchOpenChallenges().then(
+      (challenges) => challenges
+          .where((c) => c.prizeAmount != null && c.prizeAmount! > 0)
+          .toList()
+          .take(6)
+          .toList(),
+    );
   }
 
   void _loadChallenges() {
@@ -49,60 +58,172 @@ class _ChallengesPageState extends State<ChallengesPage> {
     final userId = supabase.auth.currentUser?.id;
 
     return Scaffold(
+      backgroundColor: const Color(0xFF1F1F1F),
       appBar: AppBar(
-        title: const Text('Challenges'),
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
+        backgroundColor: const Color(0xFF1F1F1F),
+        elevation: 0,
+        centerTitle: false,
+        title: Text(
+          'Challenges',
+          style: tt.titleLarge?.copyWith(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 24,
+          ),
         ),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.go('/create-challenge'),
-        icon: const Icon(Icons.add),
-        label: const Text('Create'),
-      ),
-      body: Column(
-        children: [
-          // Tab bar
+        actions: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildTab('Available', 'available', cs, tt),
-                  const SizedBox(width: 8),
-                  _buildTab('My Challenges', 'my', cs, tt),
-                  const SizedBox(width: 8),
-                  _buildTab('Completed', 'completed', cs, tt),
-                ],
+            padding: const EdgeInsets.only(right: 16),
+            child: Center(
+              child: IconButton(
+                icon: const Icon(
+                  Icons.add_circle_outline,
+                  color: Color(0xFFFF2D55),
+                ),
+                onPressed: () => context.go('/create-challenge'),
               ),
             ),
           ),
-          // Challenges list
-          Expanded(
-            child: FutureBuilder<List<Challenge>>(
+        ],
+      ),
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 16),
+            
+            // Hot Challenges section
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                'Hot Challenges',
+                style: tt.titleLarge?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // Hot challenges carousel
+            SizedBox(
+              height: 280,
+              child: FutureBuilder<List<Challenge>>(
+                future: _hotChallengesFuture,
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                    return Center(
+                      child: Text(
+                        'No hot challenges available',
+                        style: tt.bodyMedium?.copyWith(
+                          color: const Color(0xFFC7C7CC),
+                        ),
+                      ),
+                    );
+                  }
+
+                  final challenges = snapshot.data!;
+                  return ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    scrollDirection: Axis.horizontal,
+                    itemCount: challenges.length,
+                    itemBuilder: (context, index) {
+                      final challenge = challenges[index];
+                      return Container(
+                        width: 220,
+                        margin: const EdgeInsets.only(right: 12),
+                        child: ChallengeCard(
+                          title: challenge.challengeType,
+                          subtitle: 'Prize: \$${challenge.prizeAmount ?? 0}',
+                          prizeAmount: '\$${challenge.prizeAmount ?? 0}',
+                          participantCount: 0,
+                          isFeatured: true,
+                          onTap: () => context.push(
+                            '/challenges/${challenge.id}',
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+
+            const SizedBox(height: 28),
+
+            // All challenges section
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                'All Challenges',
+                style: tt.titleLarge?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // Tab bar
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _buildTab('Available', 'available', cs, tt),
+                    const SizedBox(width: 8),
+                    _buildTab('My Challenges', 'my', cs, tt),
+                    const SizedBox(width: 8),
+                    _buildTab('Completed', 'completed', cs, tt),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // Challenges list
+            FutureBuilder<List<Challenge>>(
               future: _challengesFuture,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                  return const Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
                 }
 
                 if (snapshot.hasError) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.error_outline, size: 64, color: cs.error),
-                        const SizedBox(height: 16),
-                        Text('Error loading challenges',
-                            style: tt.titleMedium),
-                        const SizedBox(height: 8),
-                        Text(snapshot.error.toString(),
-                            style: tt.bodySmall,
-                            textAlign: TextAlign.center),
-                      ],
+                  return Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Center(
+                      child: Column(
+                        children: [
+                          Icon(
+                            Icons.error_outline,
+                            size: 48,
+                            color: const Color(0xFFC7C7CC),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Error loading challenges',
+                            style: tt.titleMedium?.copyWith(
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            snapshot.error.toString(),
+                            style: tt.bodySmall?.copyWith(
+                              color: const Color(0xFFC7C7CC),
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
                     ),
                   );
                 }
@@ -110,42 +231,63 @@ class _ChallengesPageState extends State<ChallengesPage> {
                 final challenges = snapshot.data ?? [];
 
                 if (challenges.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.sports_basketball_outlined,
-                            size: 64, color: cs.outlineVariant),
-                        const SizedBox(height: 16),
-                        Text('No challenges available',
-                            style: tt.titleMedium),
-                        const SizedBox(height: 8),
-                        Text('Check back later for new challenges',
+                  return Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Center(
+                      child: Column(
+                        children: [
+                          Icon(
+                            Icons.sports_basketball_outlined,
+                            size: 48,
+                            color: const Color(0xFFC7C7CC),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'No challenges available',
+                            style: tt.titleMedium?.copyWith(
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Check back later for new challenges',
                             style: tt.bodySmall?.copyWith(
-                                color: cs.onSurfaceVariant)),
-                      ],
+                              color: const Color(0xFFC7C7CC),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   );
                 }
 
-                return ListView.builder(
-                  padding: const EdgeInsets.all(12),
-                  itemCount: challenges.length,
-                  itemBuilder: (context, index) {
-                    final challenge = challenges[index];
-                    return _buildChallengeCard(
-                      challenge,
-                      userId,
-                      cs,
-                      tt,
-                      context,
-                    );
-                  },
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: ListView.builder(
+                    physics: const NeverScrollableScrollPhysics(),
+                    shrinkWrap: true,
+                    itemCount: challenges.length,
+                    itemBuilder: (context, index) {
+                      final challenge = challenges[index];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _buildChallengeCard(
+                          challenge,
+                          userId,
+                          cs,
+                          tt,
+                          context,
+                        ),
+                      );
+                    },
+                  ),
                 );
               },
             ),
-          ),
-        ],
+
+            const SizedBox(height: 24),
+          ],
+        ),
       ),
     );
   }
@@ -155,12 +297,13 @@ class _ChallengesPageState extends State<ChallengesPage> {
     return FilterChip(
       selected: isActive,
       onSelected: (_) => _onTabChanged(value),
-      backgroundColor: isActive ? cs.primary : cs.surfaceContainerHighest,
-      selectedColor: cs.primary,
+      backgroundColor:
+          isActive ? const Color(0xFFFF2D55) : const Color(0xFF2C2C2E),
+      selectedColor: const Color(0xFFFF2D55),
       label: Text(
         label,
         style: tt.labelMedium?.copyWith(
-          color: isActive ? cs.onPrimary : cs.onSurface,
+          color: isActive ? Colors.white : const Color(0xFFC7C7CC),
         ),
       ),
     );
@@ -174,13 +317,21 @@ class _ChallengesPageState extends State<ChallengesPage> {
     BuildContext context,
   ) {
     final isCreator = challenge.creatorId == userId;
-    final statusColor = _getStatusColor(challenge.status, cs);
-    final statusLabel = _getStatusLabel(challenge.status);
-    final canJoin = !isCreator && challenge.status == 'open' && challenge.opponentId == null;
+    final canJoin = !isCreator &&
+        challenge.status == 'open' &&
+        challenge.opponentId == null;
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
+    return GestureDetector(
+      onTap: () => context.push('/challenges/${challenge.id}'),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF3A3A3C),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: const Color(0xFF2C2C2E),
+            width: 1,
+          ),
+        ),
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -189,108 +340,101 @@ class _ChallengesPageState extends State<ChallengesPage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Chip(
-                  label: Text(challenge.challengeType.toUpperCase()),
-                  backgroundColor: cs.primaryContainer,
-                  labelStyle: tt.labelSmall?.copyWith(
-                    color: cs.onPrimaryContainer,
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFF2D55),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    challenge.challengeType.toUpperCase(),
+                    style: tt.labelSmall?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: statusColor),
+                    color: _getStatusColor(challenge.status),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    statusLabel,
-                    style: tt.labelSmall?.copyWith(color: statusColor),
+                    _getStatusLabel(challenge.status),
+                    style: tt.labelSmall?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ],
             ),
+
             const SizedBox(height: 12),
-            // Opponent info with name fetching
-            FutureBuilder<String>(
-              future: challenge.opponentId != null
-                  ? ChallengeService.fetchOpponentName(challenge.opponentId!)
-                  : Future.value('Open Challenge'),
-              builder: (context, snapshot) {
-                final opponentName = snapshot.data ?? 'Loading...';
-                
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 20,
-                          backgroundColor: cs.tertiary,
-                          child: Text(
-                            opponentName.substring(0, 1).toUpperCase(),
-                            style: tt.bodySmall?.copyWith(
-                              color: cs.onTertiary,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+
+            // Description
+            Text(
+              challenge.description ?? challenge.challengeType,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: tt.bodyMedium?.copyWith(
+                color: Colors.white,
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // Footer: Prize + Action
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // Prize
+                if (challenge.prizeAmount != null &&
+                    challenge.prizeAmount! > 0) ...[
+                  Row(
+                    children: [
+                      const Text('🏆'),
+                      const SizedBox(width: 4),
+                      Text(
+                        '\$${challenge.prizeAmount}',
+                        style: tt.labelLarge?.copyWith(
+                          color: const Color(0xFFFFD700),
+                          fontWeight: FontWeight.bold,
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                opponentName,
-                                style: tt.bodyMedium?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              if (challenge.hasWager)
-                                Text(
-                                  '\$${challenge.wagerAmount?.toStringAsFixed(2) ?? '0.00'} wager',
-                                  style: tt.labelSmall?.copyWith(
-                                    color: cs.tertiary,
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                        if (isCreator)
-                          Chip(
-                            label: const Text('You'),
-                            backgroundColor: cs.secondary.withValues(alpha: 0.3),
-                            labelStyle: tt.labelSmall?.copyWith(
-                              color: cs.onSecondary,
-                            ),
-                          ),
-                      ],
+                      ),
+                    ],
+                  ),
+                ],
+                if (canJoin) ...[
+                  FilledButton(
+                    onPressed: () {
+                      _acceptChallenge(challenge.id);
+                    },
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF32D74B),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
                     ),
-                    const SizedBox(height: 12),
-                    // Action buttons
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextButton(
-                            onPressed: () => context.go('/challenge/${challenge.id}'),
-                            child: const Text('View Details'),
-                          ),
-                        ),
-                        if (canJoin) ...[
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: () => _joinChallenge(challenge.id, userId, context),
-                              child: const Text('Join Challenge'),
-                            ),
-                          ),
-                        ],
-                      ],
+                    child: Text(
+                      'Join',
+                      style: tt.labelSmall?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ],
-                );
-              },
+                  ),
+                ],
+              ],
             ),
           ],
         ),
@@ -298,52 +442,52 @@ class _ChallengesPageState extends State<ChallengesPage> {
     );
   }
 
-  Future<void> _joinChallenge(String challengeId, String? userId, BuildContext context) async {
-    if (userId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('User not authenticated')),
-      );
-      return;
-    }
-
-    try {
-      await ChallengeService.joinChallenge(challengeId, userId);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('✅ Successfully joined challenge!')),
-        );
-        context.go('/challenge/$challengeId');
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error joining challenge: $e')),
-        );
-      }
-    }
-  }
-
-  Color _getStatusColor(String status, ColorScheme cs) {
+  Color _getStatusColor(String status) {
     return switch (status) {
-      'pending_approval' => cs.error,
-      'open' => cs.tertiary,
-      'accepted' => cs.primary,
-      'in_progress' => cs.tertiary,
-      'completed' => cs.secondary,
-      'declined' => cs.outlineVariant,
-      _ => cs.outline,
+      'open' => const Color(0xFF32D74B),
+      'in_progress' => const Color(0xFFFF2D55),
+      'completed' => const Color(0xFFFFD700),
+      _ => const Color(0xFFC7C7CC),
     };
   }
 
   String _getStatusLabel(String status) {
     return switch (status) {
-      'pending_approval' => 'Pending',
       'open' => 'Open',
-      'accepted' => 'Accepted',
-      'in_progress' => 'Live',
-      'completed' => 'Done',
-      'declined' => 'Declined',
-      _ => status,
+      'in_progress' => 'In Progress',
+      'completed' => 'Completed',
+      _ => 'Unknown',
     };
+  }
+
+  Future<void> _acceptChallenge(String challengeId) async {
+    try {
+      final userId = supabase.auth.currentUser?.id;
+      if (userId == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Not authenticated')),
+          );
+        }
+        return;
+      }
+
+      await supabase.from('challenges').update({'opponent_id': userId}).eq('id', challengeId);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Challenge accepted!')),
+        );
+        setState(() {
+          _loadChallenges();
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
   }
 }
