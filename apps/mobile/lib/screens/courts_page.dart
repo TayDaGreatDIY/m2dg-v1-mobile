@@ -417,242 +417,14 @@ class _CourtsPageState extends State<CourtsPage> {
     }
   }
 
-  PreferredSizeWidget _buildTopAppBar() {
-    return AppBar(
-      title: const Text('Courts'),
-      actions: [
-        IconButton(
-          tooltip: 'Refresh',
-          onPressed: _loading ? null : _loadAll,
-          icon: const Icon(Icons.refresh),
-        ),
-        PopupMenuButton<String>(
-          onSelected: (value) async {
-            if (value == 'sign_out') {
-              await supabase.auth.signOut();
-              if (mounted) {
-                context.go('/sign-in');
-              }
-            }
-          },
-          itemBuilder: (BuildContext context) => [
-            const PopupMenuItem<String>(
-              value: 'sign_out',
-              child: Row(
-                children: [
-                  Icon(Icons.logout),
-                  SizedBox(width: 12),
-                  Text('Sign Out'),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSearch() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: TextField(
-        controller: _searchCtrl,
-        decoration: const InputDecoration(
-          prefixIcon: Icon(Icons.search),
-          hintText: 'Search courts by name, city, or state',
-          border: OutlineInputBorder(),
-          isDense: true,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSort() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: DropdownButtonFormField<CourtSort>(
-        // ignore: deprecated_member_use
-        value: _sort,
-        isExpanded: true,
-        autovalidateMode: AutovalidateMode.disabled,
-        decoration: const InputDecoration(
-          labelText: 'Sort',
-          border: OutlineInputBorder(),
-          isDense: true,
-        ),
-        items: CourtSort.values
-            .map(
-              (s) => DropdownMenuItem<CourtSort>(
-                value: s,
-                child: Text(s.label),
-              ),
-            )
-            .toList(growable: false),
-        onChanged: (v) {
-          if (v == null) return;
-          setState(() => _sort = v);
-        },
-      ),
-    );
-  }
-
-  Widget _buildFilters({String? anchorName}) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Wrap(
-            spacing: 10,
-            runSpacing: 8,
-            children: [
-              FilterChip(
-                label: const Text('Active only'),
-                selected: _filterActiveOnly,
-                onSelected: (v) => setState(() {
-                  _filterActiveOnly = v;
-                }),
-              ),
-              FilterChip(
-                label: const Text('Has radius'),
-                selected: _filterHasRadius,
-                onSelected: (v) => setState(() {
-                  _filterHasRadius = v;
-                }),
-              ),
-              if (kDebugMode)
-                FilterChip(
-                  label: const Text('DEV: Pin to court coords'),
-                  selected: _debugPinToCourtCoords,
-                  onSelected: (v) => setState(() {
-                    _debugPinToCourtCoords = v;
-                  }),
-                ),
-            ],
-          ),
-        ),
-        if (kDebugMode && _debugPinToCourtCoords && anchorName != null) ...[
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'DEV anchor: $anchorName',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildCount(int count) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Text(
-          '$count court${count == 1 ? '' : 's'}',
-          style: Theme.of(context).textTheme.labelLarge,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildList(List<Map<String, dynamic>> courts) {
-    if (courts.isEmpty) {
-  return EmptyState(
-    icon: Icons.search_off,
-    title: 'No courts found',
-    message: 'Try clearing filters or searching a different name, city, or state.',
-    actionLabel: 'Clear filters',
-    onAction: _clearFilters,
-  );
-}
-
-
-    return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: courts.length,
-      itemBuilder: (ctx, i) {
-        final c = courts[i];
-        final id = _courtId(c);
-
-        final name = _courtName(c);
-        final city = _courtCity(c);
-        final state = _courtState(c);
-
-        final active = _isActive(c);
-        final radius = _readInt(c, ['radius_meters']);
-
-        final dist = _distanceMetersFromDevAnchor(c);
-        final inRangeBool = (dist != null && radius != null) ? dist <= radius : false;
-
-        final cooldownRem =
-            id.isEmpty ? Duration.zero : _cooldownRemainingForCourt(id);
-        final cooldownActive = cooldownRem > Duration.zero;
-
-        // Keep your original "can check in" logic
-        final canCheckIn =
-            !_checkingIn && radius != null && radius > 0 && id.isNotEmpty;
-
-        final distanceText = dist != null ? '$dist m' : null;
-        final radiusText = (radius != null && radius > 0) ? '$radius m radius' : null;
-
-        // If cooldown is active, we disable the button by passing null
-        final onCheckIn = (canCheckIn && !cooldownActive) ? () => _checkInFromList(c) : null;
-
-        return FutureBuilder<int>(
-          future: id.isNotEmpty ? CourtQueueService.getWaitingCount(id) : Future.value(0),
-          builder: (context, snapshot) {
-            final waitingCount = snapshot.data ?? 0;
-            return CourtCard(
-              data: CourtCardData(
-                title: name.isEmpty ? 'Court' : name,
-                subtitle: [city, state].where((s) => s.isNotEmpty).join(', '),
-                distanceText: distanceText,
-                inRange: inRangeBool,
-                active: active,
-                radiusText: radiusText,
-                onTap: () => _openCourt(c),
-                onCheckIn: onCheckIn,
-                waitingCount: waitingCount > 0 ? waitingCount : null,
-                onNextUp: id.isNotEmpty ? () => _callNextPlayer(id) : null,
-                onJoinQueue: id.isNotEmpty ? () => _joinQueue(id) : null,
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Future<void> _callNextPlayer(String courtId) async {
-    try {
-      final nextPlayer = await CourtQueueService.callNextPlayer(courtId);
-      if (nextPlayer != null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Called next player! They have 2 minutes to check in.'),
-            duration: const Duration(seconds: 3),
-          ),
-        );
-        setState(() {}); // Refresh to update waiting count
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error calling next: $e'),
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
+  Future<void> _joinQueueFromList(
+      Map<String, dynamic> court, BuildContext context) async {
+    final id = _courtId(court);
+    if (id.isEmpty) {
+      _toast('Court missing ID');
+      return;
     }
-  }
 
-  Future<void> _joinQueue(String courtId) async {
     try {
       final user = supabase.auth.currentUser;
       if (user == null) throw Exception('Not authenticated');
@@ -661,61 +433,50 @@ class _CourtsPageState extends State<CourtsPage> {
       final existingQueue = await supabase
           .from('court_queues')
           .select('id')
-          .eq('court_id', courtId)
+          .eq('court_id', id)
           .eq('user_id', user.id)
           .maybeSingle();
 
       if (existingQueue != null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('You are already in the queue for this court.'),
-              duration: Duration(seconds: 3),
-            ),
-          );
-        }
+        _toast('Already in queue for this court');
         return;
       }
 
-      // Remove from all other court queues before joining this one
+      // Remove from all other court queues
       await supabase
           .from('court_queues')
           .delete()
           .eq('user_id', user.id)
-          .neq('court_id', courtId);
+          .neq('court_id', id);
 
       // Join the queue
-      await CourtQueueService.joinQueue(courtId, teamSize: 1);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('You joined the queue! Wait for your turn.'),
-            duration: Duration(seconds: 3),
-          ),
-        );
-        setState(() {}); // Refresh to update waiting count
-      }
+      await CourtQueueService.joinQueue(id, teamSize: 1);
+      _toast('Joined queue! Wait for your turn.');
+      setState(() {});
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error joining queue: $e'),
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
+      _toast('Error: $e');
     }
+  }
+
+  String _getUserGreeting() {
+    final user = supabase.auth.currentUser;
+    final hour = DateTime.now().hour;
+    final timeGreeting = hour < 12
+        ? 'Good morning'
+        : hour < 18
+            ? "What's good"
+            : 'Good evening';
+    final userName = user?.userMetadata?['full_name'] ?? 'Baller';
+    return '$timeGreeting, $userName!';
   }
 
   @override
   Widget build(BuildContext context) {
     final courts = _filteredSortedCourts();
-    final anchorCourt =
-        (kDebugMode && _debugPinToCourtCoords) ? _findDevAnchorCourt() : null;
-    final anchorName = anchorCourt == null ? null : _courtName(anchorCourt);
 
     return Scaffold(
-      appBar: _buildTopAppBar(),
+      backgroundColor: const Color(0xFF1F1F1F),
+      appBar: _buildMinimalAppBar(),
       body: _loading
           ? const SkeletonList(count: 6)
           : _error != null
@@ -723,34 +484,361 @@ class _CourtsPageState extends State<CourtsPage> {
                   message: _error!,
                   onRetry: _loadAll,
                 )
-              : Column(
-                  children: [
-                    const SizedBox(height: 10),
+              : SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 16),
 
-                    // Search
-                    _buildSearch(),
+                      // Greeting section
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _getUserGreeting(),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .headlineMedium
+                                  ?.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Ready to bring the heat?',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(
+                                    color: const Color(0xFFC7C7CC),
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
 
-                    const SizedBox(height: 10),
+                      const SizedBox(height: 24),
 
-                    // Sort
-                    _buildSort(),
+                      // Nearby Courts section
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
+                          'Nearby Courts',
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleLarge
+                              ?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                        ),
+                      ),
 
-                    const SizedBox(height: 10),
+                      const SizedBox(height: 12),
 
-                    // Filters + Debug toggle
-                    _buildFilters(anchorName: anchorName),
+                      // Nearby courts cards (show first 3)
+                      SizedBox(
+                        height: 280,
+                        child: ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          scrollDirection: Axis.horizontal,
+                          itemCount: courts.length > 3 ? 3 : courts.length,
+                          itemBuilder: (context, index) {
+                            final court = courts[index];
+                            final courtId = _courtId(court);
+                            final cooldown =
+                                _cooldownRemainingForCourt(courtId);
+                            final isOnCooldown = cooldown > Duration.zero;
+                            final radius = _readInt(court, ['radius_meters']);
+                            final dist =
+                                _distanceMetersFromDevAnchor(court);
 
-                    const SizedBox(height: 8),
+                            return Container(
+                              width: 280,
+                              margin: const EdgeInsets.only(right: 12),
+                              child: CourtCard(
+                                data: CourtCardData(
+                                  title: _courtName(court),
+                                  subtitle: [_courtCity(court), _courtState(court)]
+                                      .where((s) => s.isNotEmpty)
+                                      .join(', '),
+                                  distanceText: dist != null ? '$dist m' : null,
+                                  inRange: (dist != null && radius != null)
+                                      ? dist <= radius
+                                      : false,
+                                  active: _isActive(court),
+                                  radiusText: (radius != null && radius > 0)
+                                      ? '$radius m radius'
+                                      : null,
+                                  onTap: () => _openCourt(court),
+                                  onCheckIn: !isOnCooldown && !_checkingIn
+                                      ? () => _checkInFromList(court)
+                                      : null,
+                                  onJoinQueue: () =>
+                                      _joinQueueFromList(court, context),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
 
-                    // Count
-                    _buildCount(courts.length),
+                      const SizedBox(height: 28),
 
-                    const SizedBox(height: 8),
+                      // All courts section
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'All Courts',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleLarge
+                                  ?.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                            ),
+                            GestureDetector(
+                              onTap: () => _showSortFilterSheet(context),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF2C2C2E),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(
+                                  Icons.tune,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
 
-                    // List
-                    Expanded(child: _buildList(courts)),
-                  ],
+                      const SizedBox(height: 12),
+
+                      // Search bar
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: _buildMinimalSearch(),
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // Courts list
+                      if (courts.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.all(32),
+                          child: Center(
+                            child: Column(
+                              children: [
+                                Icon(
+                                  Icons.location_off_outlined,
+                                  color: const Color(0xFFC7C7CC),
+                                  size: 48,
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'No courts found',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodyLarge
+                                      ?.copyWith(
+                                        color: const Color(0xFFC7C7CC),
+                                      ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      else
+                        ListView.builder(
+                          physics: const NeverScrollableScrollPhysics(),
+                          shrinkWrap: true,
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: courts.length,
+                          itemBuilder: (context, index) {
+                            final court = courts[index];
+                            final courtId = _courtId(court);
+                            final cooldown =
+                                _cooldownRemainingForCourt(courtId);
+                            final isOnCooldown = cooldown > Duration.zero;
+                            final radius = _readInt(court, ['radius_meters']);
+                            final dist =
+                                _distanceMetersFromDevAnchor(court);
+
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: CourtCard(
+                                data: CourtCardData(
+                                  title: _courtName(court),
+                                  subtitle: [_courtCity(court), _courtState(court)]
+                                      .where((s) => s.isNotEmpty)
+                                      .join(', '),
+                                  distanceText: dist != null ? '$dist m' : null,
+                                  inRange: (dist != null && radius != null)
+                                      ? dist <= radius
+                                      : false,
+                                  active: _isActive(court),
+                                  radiusText: (radius != null && radius > 0)
+                                      ? '$radius m radius'
+                                      : null,
+                                  onTap: () => _openCourt(court),
+                                  onCheckIn: !isOnCooldown && !_checkingIn
+                                      ? () => _checkInFromList(court)
+                                      : null,
+                                  onJoinQueue: () =>
+                                      _joinQueueFromList(court, context),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+
+                      const SizedBox(height: 24),
+                    ],
+                  ),
                 ),
+    );
+  }
+
+  PreferredSizeWidget _buildMinimalAppBar() {
+    return AppBar(
+      backgroundColor: const Color(0xFF1F1F1F),
+      elevation: 0,
+      centerTitle: false,
+      title: Text(
+        'M2DG',
+        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 24,
+            ),
+      ),
+      actions: [
+        Padding(
+          padding: const EdgeInsets.only(right: 16),
+          child: Center(
+            child: Badge(
+              backgroundColor: const Color(0xFFFF2D55),
+              child: IconButton(
+                icon: const Icon(Icons.notifications_outlined,
+                    color: Colors.white),
+                onPressed: () {
+                  context.pushNamed('notifications');
+                },
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMinimalSearch() {
+    return TextField(
+      controller: _searchCtrl,
+      decoration: InputDecoration(
+        hintText: 'Search courts...',
+        hintStyle: const TextStyle(color: Color(0xFFC7C7CC)),
+        prefixIcon: const Icon(Icons.search, color: Color(0xFFC7C7CC)),
+        filled: true,
+        fillColor: const Color(0xFF2C2C2E),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+      ),
+      style: const TextStyle(color: Colors.white),
+    );
+  }
+
+  void _showSortFilterSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF2C2C2E),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Sort By',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: Colors.white,
+                  ),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final sortOption in CourtSort.values)
+                  FilterChip(
+                    label: Text(sortOption.label),
+                    selected: _sort == sortOption,
+                    onSelected: (selected) {
+                      if (selected) {
+                        setState(() => _sort = sortOption);
+                      }
+                      Navigator.pop(context);
+                    },
+                    backgroundColor: const Color(0xFF3A3A3C),
+                    selectedColor: const Color(0xFFFF2D55),
+                    labelStyle: TextStyle(
+                      color: _sort == sortOption
+                          ? Colors.white
+                          : const Color(0xFFC7C7CC),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Filters',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: Colors.white,
+                  ),
+            ),
+            const SizedBox(height: 12),
+            CheckboxListTile(
+              title: const Text('Active Only',
+                  style: TextStyle(color: Colors.white)),
+              value: _filterActiveOnly,
+              onChanged: (v) {
+                setState(() => _filterActiveOnly = v ?? false);
+                Navigator.pop(context);
+              },
+              checkColor: Colors.white,
+              activeColor: const Color(0xFFFF2D55),
+            ),
+            CheckboxListTile(
+              title: const Text('Has Radius',
+                  style: TextStyle(color: Colors.white)),
+              value: _filterHasRadius,
+              onChanged: (v) {
+                setState(() => _filterHasRadius = v ?? false);
+                Navigator.pop(context);
+              },
+              checkColor: Colors.white,
+              activeColor: const Color(0xFFFF2D55),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
