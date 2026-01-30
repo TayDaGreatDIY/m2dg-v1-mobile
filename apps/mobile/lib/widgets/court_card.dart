@@ -80,19 +80,19 @@ class CourtCard extends StatelessWidget {
     ];
 
     return Material(
-      color: cs.surface,
-      elevation: 1.5,
-      shadowColor: cs.shadow,
-      borderRadius: BorderRadius.circular(20),
+      color: Color(0xFF3A3A3C),
+      elevation: 4,
+      shadowColor: Color(0x00000040),
+      borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: data.onTap,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         child: Container(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: cs.outlineVariant,
+              color: Color(0xFF2C2C2E),
               width: 1,
             ),
           ),
@@ -102,7 +102,7 @@ class CourtCard extends StatelessWidget {
               _Avatar(
                 letter: _initial(data.title),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 16),
 
               // Main content
               Expanded(
@@ -115,20 +115,21 @@ class CourtCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: t.titleMedium?.copyWith(
                         fontWeight: FontWeight.w800,
+                        color: Color(0xFFFFFFFF),
                         letterSpacing: 0.2,
                       ),
                     ),
-                    const SizedBox(height: 3),
+                    const SizedBox(height: 4),
                     Text(
                       data.subtitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: t.bodySmall?.copyWith(
-                        color: cs.onSurfaceVariant,
+                        color: Color(0xFFC7C7CC),
                       ),
                     ),
                     if (chips.isNotEmpty) ...[
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 12),
                       Wrap(
                         spacing: 8,
                         runSpacing: 8,
@@ -139,7 +140,7 @@ class CourtCard extends StatelessWidget {
                 ),
               ),
 
-              const SizedBox(width: 12),
+              const SizedBox(width: 16),
 
               // Actions
               Column(
@@ -149,18 +150,18 @@ class CourtCard extends StatelessWidget {
                   if (data.waitingCount != null && data.waitingCount! > 0)
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
+                        horizontal: 10,
+                        vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: cs.errorContainer,
+                        color: Color(0xFFFF2D55),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
                         '${data.waitingCount} waiting',
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: cs.onErrorContainer,
-                          fontWeight: FontWeight.w600,
+                          color: Color(0xFFFFFFFF),
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
@@ -168,21 +169,22 @@ class CourtCard extends StatelessWidget {
                   // Join Queue button
                   if (data.onJoinQueue != null)
                     SizedBox(
-                      height: 36,
+                      height: 38,
                       child: FilledButton(
                         onPressed: data.onJoinQueue,
                         style: FilledButton.styleFrom(
-                          backgroundColor: cs.tertiary,
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          backgroundColor: Color(0xFF32D74B),
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(10),
                           ),
+                          elevation: 2,
                         ),
                         child: Text(
                           'Join Queue',
                           style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                            color: cs.onTertiary,
-                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF1F1F1F),
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ),
@@ -191,21 +193,22 @@ class CourtCard extends StatelessWidget {
                   // Call Next button
                   if (data.onNextUp != null)
                     SizedBox(
-                      height: 36,
+                      height: 38,
                       child: FilledButton(
                         onPressed: data.onNextUp,
                         style: FilledButton.styleFrom(
-                          backgroundColor: cs.secondary,
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          backgroundColor: Color(0xFFFFD700),
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(10),
                           ),
+                          elevation: 2,
                         ),
                         child: Text(
                           'Call Next',
                           style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                            color: cs.onSecondary,
-                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF1F1F1F),
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ),
@@ -213,22 +216,30 @@ class CourtCard extends StatelessWidget {
                   const SizedBox(height: 8),
                   // Check in button
                   SizedBox(
-                    height: 36,
+                    height: 38,
                     child: FilledButton(
                       onPressed: data.onCheckIn,
                       style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        backgroundColor: Color(0xFFFF2D55),
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        elevation: 2,
+                      ),
+                      child: Text(
+                        'Check in',
+                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color: Color(0xFFFFFFFF),
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
-                      child: const Text('Check in'),
                     ),
                   ),
                   const SizedBox(height: 8),
                   Icon(
                     Icons.chevron_right_rounded,
-                    color: cs.onSurfaceVariant,
+                    color: Color(0xFFC7C7CC),
                   ),
                 ],
               ),
@@ -245,18 +256,20 @@ class CourtCard extends StatelessWidget {
     IconData? icon,
     bool emphasis = false,
   }) {
-    final cs = Theme.of(context).colorScheme;
     final t = Theme.of(context).textTheme;
 
-    final bg = emphasis ? cs.primaryContainer : cs.surfaceContainerHighest;
-    final fg = emphasis ? cs.onPrimaryContainer : cs.onSurfaceVariant;
+    final bg = emphasis ? Color(0xFFFF2D55) : Color(0xFF2C2C2E);
+    final fg = emphasis ? Color(0xFFFFFFFF) : Color(0xFFC7C7CC);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: cs.outlineVariant),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: emphasis ? Color(0xFFFF2D55) : Color(0xFF3A3A3C),
+          width: 1,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -287,23 +300,28 @@ class _Avatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
     return Container(
-      width: 40,
-      height: 40,
+      width: 48,
+      height: 48,
       decoration: BoxDecoration(
-        color: cs.secondaryContainer,
+        color: Color(0xFFFF2D55),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: cs.outlineVariant),
+        border: Border.all(color: Color(0xFF2C2C2E), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0xFFFF2D55).withOpacity(0.3),
+            blurRadius: 8,
+            offset: Offset(0, 4),
+          ),
+        ],
       ),
       alignment: Alignment.center,
       child: Text(
         letter,
         style: TextStyle(
-          color: cs.onSecondaryContainer,
+          color: Color(0xFFFFFFFF),
           fontWeight: FontWeight.w900,
-          fontSize: 16,
+          fontSize: 18,
         ),
       ),
     );

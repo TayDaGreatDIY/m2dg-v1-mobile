@@ -390,33 +390,109 @@ class _M2DGAppState extends State<M2DGApp> {
       title: 'M2DG',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.orange,
-          brightness: Brightness.light,
+        colorScheme: ColorScheme(
+          brightness: Brightness.dark,
+          primary: Color(0xFFFF2D55), // Bold red/pink CTA
+          onPrimary: Color(0xFFFFFFFF), // White on red
+          secondary: Color(0xFFFFD700), // Gold for rewards
+          onSecondary: Color(0xFF1F1F1F), // Dark on gold
+          tertiary: Color(0xFF32D74B), // Green success
+          onTertiary: Color(0xFFFFFFFF), // White on green
+          background: Color(0xFF1F1F1F), // Deep black background
+          onBackground: Color(0xFFFFFFFF), // White text
+          surface: Color(0xFF3A3A3C), // Concrete gray cards
+          onSurface: Color(0xFFFFFFFF), // White text on cards
+          outline: Color(0xFFC7C7CC), // Soft gray borders
+          surfaceVariant: Color(0xFF2C2C2E), // Slightly lighter gray
+          onSurfaceVariant: Color(0xFFC7C7CC), // Soft gray secondary text
+          error: Color(0xFFFF2D55), // Red for errors
+          onError: Color(0xFFFFFFFF), // White on error
         ),
         useMaterial3: true,
+        scaffoldBackgroundColor: Color(0xFF1F1F1F),
         appBarTheme: AppBarTheme(
           backgroundColor: Color(0xFF1F1F1F),
-          foregroundColor: Colors.white,
+          foregroundColor: Color(0xFFFFFFFF),
           elevation: 0,
           centerTitle: true,
         ),
         cardTheme: CardThemeData(
-          elevation: 2,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          color: Color(0xFF3A3A3C),
+          elevation: 4,
+          shadowColor: Color(0xFF000000).withOpacity(0.3),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
         ),
         filledButtonTheme: FilledButtonThemeData(
           style: FilledButton.styleFrom(
-            padding: EdgeInsets.symmetric(vertical: 14, horizontal: 24),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            backgroundColor: Color(0xFFFF2D55), // Red/pink CTA
+            foregroundColor: Color(0xFFFFFFFF),
+            padding: EdgeInsets.symmetric(vertical: 16, horizontal: 32),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            elevation: 4,
+            shadowColor: Color(0xFFFF2D55).withOpacity(0.4),
           ),
         ),
         outlinedButtonTheme: OutlinedButtonThemeData(
           style: OutlinedButton.styleFrom(
+            foregroundColor: Color(0xFFFFFFFF),
+            side: BorderSide(color: Color(0xFFC7C7CC), width: 1.5),
             padding: EdgeInsets.symmetric(vertical: 14, horizontal: 24),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         ),
+        textTheme: TextTheme(
+          displayLarge: TextStyle(
+            color: Color(0xFFFFFFFF),
+            fontWeight: FontWeight.bold,
+          ),
+          displayMedium: TextStyle(
+            color: Color(0xFFFFFFFF),
+            fontWeight: FontWeight.bold,
+          ),
+          headlineSmall: TextStyle(
+            color: Color(0xFFFFFFFF),
+            fontWeight: FontWeight.bold,
+          ),
+          titleLarge: TextStyle(
+            color: Color(0xFFFFFFFF),
+            fontWeight: FontWeight.w600,
+          ),
+          bodyMedium: TextStyle(
+            color: Color(0xFFFFFFFF),
+          ),
+          bodySmall: TextStyle(
+            color: Color(0xFFC7C7CC),
+          ),
+          labelSmall: TextStyle(
+            color: Color(0xFFC7C7CC),
+          ),
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          fillColor: Color(0xFF2C2C2E),
+          filled: true,
+          contentPadding: EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Color(0xFFC7C7CC), width: 1),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Color(0xFFFF2D55), width: 2),
+          ),
+          hintStyle: TextStyle(color: Color(0xFFC7C7CC)),
+          labelStyle: TextStyle(color: Color(0xFFFFFFFF)),
+        ),
+        iconTheme: IconThemeData(color: Color(0xFFFFFFFF)),
       ),
       routerConfig: _router,
     );
